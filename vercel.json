@@ -1,6 +1,4 @@
 {
-  "framework": null,
-  "outputDirectory": "public",
   "functions": {
     "api/proxy/[...path].js": {
       "maxDuration": 30
