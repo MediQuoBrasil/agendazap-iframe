@@ -1,112 +1,63 @@
-const TARGET = 'https://agendazap.top';
-const PREFIX = '/api/proxy';
-
-/**
- * Reescreve todas as URLs absolutas do agendazap para o proxy.
- * Trata AMBAS as formas:
- *   - Normal:       https://agendazap.top
- *   - JSON-escaped: https:\/\/agendazap.top  (barras escapadas em JS/JSON inline)
- */
-function rewriteAbsoluteUrls(text) {
-  text = text.replace(/https?:\/\/(www\.)?agendazap\.top/gi, PREFIX);
-  text = text.replace(/https?:\\\/\\\/(www\.)?agendazap\.top/gi, PREFIX);
-  return text;
-}
-
-/**
- * Reescreve paths dentro de HTML
- */
-function rewriteHtml(html) {
-  html = rewriteAbsoluteUrls(html);
-  html = html.replace(/(src|href|action|poster|data-[a-z\-]+)=(["'])\/(?!\/|api\/proxy)/gi,
-    '$1=$2' + PREFIX + '/');
-  html = html.replace(/(["'])\/(?!\/|api\/proxy)([a-zA-Z])/g,
-    '$1' + PREFIX + '/$2');
-  return html;
-}
-
-/**
- * Reescreve paths dentro de CSS
- */
-function rewriteCss(css) {
-  css = rewriteAbsoluteUrls(css);
-  css = css.replace(/url\(\s*(["']?)\/(?!\/|api\/proxy)/g,
-    'url($1' + PREFIX + '/');
-  return css;
-}
-
-/**
- * Reescreve paths dentro de JS
- */
-function rewriteJs(js) {
-  js = rewriteAbsoluteUrls(js);
-  js = js.replace(/(["'])\/(?!\/|api\/proxy)([a-zA-Z])/g,
-    '$1' + PREFIX + '/$2');
-  return js;
-}
-
-/**
- * Reconstroi o caminho de destino a partir de req.query,
- * pois o Vercel rewrite coloca os segmentos capturados em req.query.path
- * e os query params originais em req.query.
- */
-function buildTargetPath(req) {
-  // O Vercel rewrite "/:path*" coloca o match em req.query.path
-  var pathSegments = req.query.path;
-  var subPath = '';
-
-  if (Array.isArray(pathSegments)) {
-    subPath = pathSegments.join('/');
-  } else if (typeof pathSegments === 'string' && pathSegments) {
-    subPath = pathSegments;
-  }
-
-  // Reconstroi query string SEM o 'path' (que e do rewrite interno)
-  var qsParts = [];
-  var query = req.query || {};
-  var keys = Object.keys(query);
-  for (var i = 0; i < keys.length; i++) {
-    var k = keys[i];
-    if (k === 'path') continue; // param interno do rewrite
-    var v = query[k];
-    if (Array.isArray(v)) {
-      for (var j = 0; j < v.length; j++) {
-        qsParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v[j]));
-      }
-    } else {
-      qsParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v));
-    }
-  }
-
-  var targetPath = '/' + subPath;
-  if (qsParts.length > 0) {
-    targetPath += '?' + qsParts.join('&');
-  }
-
-  return targetPath;
-}
+var TARGET = 'https://agendazap.top';
 
 module.exports = async function handler(req, res) {
   // CORS preflight
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With');
     return res.status(200).end();
   }
 
   var targetUrl = '';
 
   try {
-    var targetPath = buildTargetPath(req);
-
-    // Se nao sobrou path, retorna info
-    if (targetPath === '/') {
-      return res.status(200).json({ ok: true, message: 'Proxy funcionando!' });
+    var pathSegments = req.query.path;
+    if (!pathSegments || pathSegments.length === 0) {
+      return res.status(400).json({ error: 'Path obrigatorio' });
     }
 
-    targetUrl = TARGET + targetPath;
+    // Handle both array and string path formats
+    if (typeof pathSegments === 'string') {
+      pathSegments = pathSegments.split('/');
+    }
 
+    var basePath = '/' + pathSegments.join('/');
+
+    // Separate query params (excluding Vercel's internal 'path')
+    var queryParts = [];
+    var serviceValue = '';
+    var keys = Object.keys(req.query);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (k === 'path') continue;
+      if (k === 'service') {
+        serviceValue = req.query[k];
+      }
+      queryParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(req.query[k]));
+    }
+
+    // FIX #1: agendazap expects /p/mediquo&service=767 (& in path, NOT query string)
+    // Only for the booking page path /p/..., use & format
+    if (pathSegments[0] === 'p' && serviceValue) {
+      targetUrl = TARGET + basePath + '&service=' + encodeURIComponent(serviceValue);
+      // Remove service from remaining query parts
+      queryParts = queryParts.filter(function(part) {
+        return !part.startsWith('service=');
+      });
+      if (queryParts.length > 0) {
+        targetUrl += '?' + queryParts.join('&');
+      }
+    } else {
+      // Standard query string for all other paths (API calls, assets, etc)
+      if (queryParts.length > 0) {
+        targetUrl = TARGET + basePath + '?' + queryParts.join('&');
+      } else {
+        targetUrl = TARGET + basePath;
+      }
+    }
+
+    // Headers simulando navegacao direta
     var headers = {
       'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Accept': req.headers['accept'] || 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -115,12 +66,18 @@ module.exports = async function handler(req, res) {
       'Origin': TARGET
     };
 
+    // Forward cookies if present
+    if (req.headers['cookie']) {
+      headers['Cookie'] = req.headers['cookie'];
+    }
+
     var fetchOptions = {
       method: req.method,
       headers: headers,
       redirect: 'follow'
     };
 
+    // Encaminha body para POST
     if (req.method === 'POST') {
       var chunks = [];
       await new Promise(function(resolve, reject) {
@@ -135,28 +92,47 @@ module.exports = async function handler(req, res) {
     var response = await fetch(targetUrl, fetchOptions);
     var contentType = response.headers.get('content-type') || '';
 
+    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With');
+
+    // Forward Set-Cookie headers
+    var setCookies = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
+    if (setCookies && setCookies.length > 0) {
+      res.setHeader('Set-Cookie', setCookies);
+    }
 
     if (contentType.includes('text/html')) {
       var html = await response.text();
-      html = rewriteHtml(html);
+
+      // FIX #2: Rewrite JSON-escaped URLs in inline scripts
+      // GlobalVariables.baseUrl uses "https:\/\/agendazap.top" (escaped slashes)
+      // The old regex only matched unescaped https://agendazap.top
+      html = html.replace(/https?:\\\/\\\/(www\.)?agendazap\.top/gi, '\\/api\\/proxy');
+
+      // Rewrite normal unescaped absolute URLs
+      html = html.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
+
+      // Rewrite root-relative paths in src, href, action attributes
+      // Negative lookahead prevents doubling /api/proxy/ on already-rewritten URLs
+      html = html.replace(/(src|href|action)=(["'])\/(?!api\/proxy)/g, '$1=$2/api/proxy/');
+
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.status(response.status).send(html);
 
     } else if (contentType.includes('css')) {
       var css = await response.text();
-      css = rewriteCss(css);
+      css = css.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
+      css = css.replace(/url\(\s*(["']?)\//g, 'url($1/api/proxy/');
       res.setHeader('Content-Type', contentType);
       return res.status(response.status).send(css);
 
-    } else if (
-      contentType.includes('javascript') ||
-      contentType.includes('text/js') ||
-      contentType.includes('ecmascript')
-    ) {
+    } else if (contentType.includes('javascript') || contentType.includes('text/js')) {
       var js = await response.text();
-      js = rewriteJs(js);
+      // Handle both escaped and unescaped URLs in JS files
+      js = js.replace(/https?:\\\/\\\/(www\.)?agendazap\.top/gi, '\\/api\\/proxy');
+      js = js.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
       res.setHeader('Content-Type', contentType);
       return res.status(response.status).send(js);
 
@@ -169,11 +145,7 @@ module.exports = async function handler(req, res) {
     }
 
   } catch (err) {
-    return res.status(500).json({
-      error: 'Proxy error',
-      message: err.message,
-      url: targetUrl || 'unknown'
-    });
+    return res.status(500).json({ error: 'Proxy error', message: err.message, url: targetUrl || 'unknown' });
   }
 };
 
