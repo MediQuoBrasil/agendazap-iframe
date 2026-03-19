@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MAG Seguros - Portal de Benefícios</title>
-<meta http-equiv="Content-Security-Policy" content="frame-src 'self' https://agendazap.top https://*.agendazap.top *;">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #85BCDE; min-height: 100vh; display: flex; }
@@ -190,6 +189,7 @@
     border-color: #022647;
   }
 
+  /* IFRAME AGENDAMENTO */
   .iframe-container {
     margin-top: 28px;
     border: 2px solid #d0dce5;
@@ -199,7 +199,7 @@
   }
   .iframe-container iframe {
     width: 100%;
-    height: 650px;
+    height: 700px;
     border: none;
     display: block;
   }
@@ -301,9 +301,11 @@
     <div class="content-area">
       <div class="content-card">
         <h1>Agendar Consulta Online com Especialista</h1>
+        <p class="subtitle">Selecione a especialidade desejada e clique em agendar para ser direcionado à plataforma de agendamento.</p>
+        <p class="note">O uso deste serviço está incluso no seu plano sem custo.</p>
         <div class="form-group">
           <label for="especialidade">Especialidade</label>
-          <select id="especialidade">
+          <select id="especialidade" onchange="atualizarSelecao()">
             <option value="">Selecione uma especialidade...</option>
             <option value="dermatologia">Dermatologia</option>
             <option value="ginecologia">Ginecologia</option>
@@ -312,20 +314,22 @@
             <option value="treinadores">Treinadores</option>
           </select>
         </div>
-        <button class="btn-primary" id="btn-agendar" onclick="abrirAgendamento()">Agendar consulta</button>
 
-        <!-- Fallback: link direto caso iframe seja bloqueado -->
-        <div id="fallback-link" style="display:none; margin-top:18px; padding:16px 20px; background:#fff8e1; border:1px solid #ffe082; border-radius:8px;">
-          <p style="font-size:14px; color:#5d4037; margin-bottom:10px;">
-            ⚠️ Caso o agendamento não carregue abaixo, clique no botão para abrir em nova aba:
-          </p>
-          <a id="fallback-anchor" href="#" target="_blank" rel="noopener" class="btn-primary" style="text-decoration:none;">
-            Abrir agendamento em nova aba ↗
-          </a>
+        <!-- Card de confirmação que aparece ao selecionar -->
+        <div id="especialidade-info" style="display:none; margin-bottom:24px; padding:18px 22px; background:#f0f7fb; border:1px solid #b8d8ea; border-radius:8px;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <svg width="20" height="20" fill="none" stroke="#022647" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span id="info-especialidade" style="font-weight:700; color:#022647; font-size:15px;"></span>
+          </div>
+          <p style="font-size:13px; color:#5a7b91; margin:0;">Selecione e clique em agendar para carregar o formulário abaixo.</p>
         </div>
 
+        <button id="btn-agendar" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; opacity:0.5; pointer-events:none;" onclick="abrirAgendamento()">
+          Agendar consulta
+        </button>
+
         <div id="iframe-wrapper" class="iframe-container" style="display:none;">
-          <iframe id="agendamento-iframe" src="" allow="camera; microphone" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"></iframe>
+          <iframe id="agendamento-iframe" src="" allow="camera; microphone"></iframe>
         </div>
       </div>
     </div>
@@ -333,12 +337,21 @@
 </main>
 
 <script>
+// URLs via reverse proxy (same-origin via Vercel Rewrites)
 const urls = {
-  dermatologia: 'https://agendazap.top/p/mediquo&service=767',
-  ginecologia: 'https://agendazap.top/p/mediquo&service=1348',
-  nutricao: 'https://agendazap.top/p/mediquo&service=1174',
-  psicologia: 'https://agendazap.top/p/mediquo&service=759',
-  treinadores: 'https://agendazap.top/p/mediquo&service=824'
+  dermatologia: '/p/mediquo&service=767',
+  ginecologia: '/p/mediquo&service=1348',
+  nutricao: '/p/mediquo&service=1174',
+  psicologia: '/p/mediquo&service=759',
+  treinadores: '/p/mediquo&service=824'
+};
+
+const nomes = {
+  dermatologia: 'Dermatologia',
+  ginecologia: 'Ginecologia',
+  nutricao: 'Nutrição',
+  psicologia: 'Psicologia',
+  treinadores: 'Treinadores'
 };
 
 // Navigation
@@ -353,35 +366,39 @@ document.querySelectorAll('.nav-item:not(.disabled)').forEach(item => {
     // Reset iframe ao trocar de página
     if (page !== 'agendamento') {
       document.getElementById('iframe-wrapper').style.display = 'none';
-      document.getElementById('fallback-link').style.display = 'none';
       document.getElementById('agendamento-iframe').src = '';
     }
   });
 });
 
+function atualizarSelecao() {
+  const esp = document.getElementById('especialidade').value;
+  const btn = document.getElementById('btn-agendar');
+  const info = document.getElementById('especialidade-info');
+  const infoText = document.getElementById('info-especialidade');
+
+  if (esp) {
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+    infoText.textContent = nomes[esp];
+    info.style.display = 'block';
+  } else {
+    btn.style.opacity = '0.5';
+    btn.style.pointerEvents = 'none';
+    info.style.display = 'none';
+  }
+  // Esconde iframe anterior ao mudar seleção
+  document.getElementById('iframe-wrapper').style.display = 'none';
+  document.getElementById('agendamento-iframe').src = '';
+}
+
 function abrirAgendamento() {
   const esp = document.getElementById('especialidade').value;
   if (!esp) { alert('Por favor, selecione uma especialidade.'); return; }
-  const url = urls[esp];
-
   const iframe = document.getElementById('agendamento-iframe');
   const wrapper = document.getElementById('iframe-wrapper');
-  const fallback = document.getElementById('fallback-link');
-  const anchor = document.getElementById('fallback-anchor');
-
-  // Atualiza o link de fallback
-  anchor.href = url;
-
-  // Tenta carregar iframe
-  iframe.src = url;
+  iframe.src = urls[esp];
   wrapper.style.display = 'block';
-  fallback.style.display = 'block';
-
-  // Detecta erro de carregamento do iframe (CSP block)
-  iframe.onerror = function() {
-    fallback.style.display = 'block';
-  };
-
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 </script>
