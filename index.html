@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MAG Seguros - Portal de Benefícios</title>
+<meta http-equiv="Content-Security-Policy" content="frame-src 'self' https://agendazap.top https://*.agendazap.top *;">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #85BCDE; min-height: 100vh; display: flex; }
@@ -312,8 +313,19 @@
           </select>
         </div>
         <button class="btn-primary" id="btn-agendar" onclick="abrirAgendamento()">Agendar consulta</button>
+
+        <!-- Fallback: link direto caso iframe seja bloqueado -->
+        <div id="fallback-link" style="display:none; margin-top:18px; padding:16px 20px; background:#fff8e1; border:1px solid #ffe082; border-radius:8px;">
+          <p style="font-size:14px; color:#5d4037; margin-bottom:10px;">
+            ⚠️ Caso o agendamento não carregue abaixo, clique no botão para abrir em nova aba:
+          </p>
+          <a id="fallback-anchor" href="#" target="_blank" rel="noopener" class="btn-primary" style="text-decoration:none;">
+            Abrir agendamento em nova aba ↗
+          </a>
+        </div>
+
         <div id="iframe-wrapper" class="iframe-container" style="display:none;">
-          <iframe id="agendamento-iframe" src="" allow="camera; microphone"></iframe>
+          <iframe id="agendamento-iframe" src="" allow="camera; microphone" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"></iframe>
         </div>
       </div>
     </div>
@@ -338,6 +350,12 @@ document.querySelectorAll('.nav-item:not(.disabled)').forEach(item => {
     document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
     const target = document.getElementById('page-' + page);
     if (target) target.style.display = 'block';
+    // Reset iframe ao trocar de página
+    if (page !== 'agendamento') {
+      document.getElementById('iframe-wrapper').style.display = 'none';
+      document.getElementById('fallback-link').style.display = 'none';
+      document.getElementById('agendamento-iframe').src = '';
+    }
   });
 });
 
@@ -345,9 +363,26 @@ function abrirAgendamento() {
   const esp = document.getElementById('especialidade').value;
   if (!esp) { alert('Por favor, selecione uma especialidade.'); return; }
   const url = urls[esp];
-  document.getElementById('agendamento-iframe').src = url;
-  document.getElementById('iframe-wrapper').style.display = 'block';
-  document.getElementById('iframe-wrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const iframe = document.getElementById('agendamento-iframe');
+  const wrapper = document.getElementById('iframe-wrapper');
+  const fallback = document.getElementById('fallback-link');
+  const anchor = document.getElementById('fallback-anchor');
+
+  // Atualiza o link de fallback
+  anchor.href = url;
+
+  // Tenta carregar iframe
+  iframe.src = url;
+  wrapper.style.display = 'block';
+  fallback.style.display = 'block';
+
+  // Detecta erro de carregamento do iframe (CSP block)
+  iframe.onerror = function() {
+    fallback.style.display = 'block';
+  };
+
+  wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 </script>
 
