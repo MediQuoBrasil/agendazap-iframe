@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/p/:path*", "destination": "https://agendazap.top/p/:path*" },
+    { "source": "/vendor/:path*", "destination": "https://agendazap.top/vendor/:path*" },
+    { "source": "/assets/:path*", "destination": "https://agendazap.top/assets/:path*" },
+    { "source": "/index.php/:path*", "destination": "https://agendazap.top/index.php/:path*" },
+    { "source": "/js/:path*", "destination": "https://agendazap.top/js/:path*" },
+    { "source": "/css/:path*", "destination": "https://agendazap.top/css/:path*" },
+    { "source": "/img/:path*", "destination": "https://agendazap.top/img/:path*" },
+    { "source": "/fonts/:path*", "destination": "https://agendazap.top/fonts/:path*" },
+    { "source": "/uploads/:path*", "destination": "https://agendazap.top/uploads/:path*" }
+  ]
+}
