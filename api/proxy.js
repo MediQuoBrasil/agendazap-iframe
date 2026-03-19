@@ -66,14 +66,15 @@ module.exports = async function handler(req, res) {
       // Reescreve URLs absolutas do agendazap para passar pelo proxy
       html = html.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
       // Reescreve caminhos absolutos em atributos src, href, action
-      html = html.replace(/(src|href|action)=(["'])\//g, '$1=$2/api/proxy/');
+      // Negative lookahead evita duplicar o prefixo em URLs ja reescritas
+      html = html.replace(/(src|href|action)=(["'])\/(?!api\/proxy)/g, '$1=$2/api/proxy/');
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.status(response.status).send(html);
 
     } else if (contentType.includes('css')) {
       var css = await response.text();
       css = css.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
-      css = css.replace(/url\(\s*(["']?)\//g, 'url($1/api/proxy/');
+      css = css.replace(/url\(\s*(["']?)\/(?!api\/proxy)/g, 'url($1/api/proxy/');
       res.setHeader('Content-Type', contentType);
       return res.status(response.status).send(css);
 
