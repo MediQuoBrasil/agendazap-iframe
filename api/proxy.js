@@ -2,10 +2,17 @@ const TARGET = 'https://agendazap.top';
 const PREFIX = '/api/proxy';
 
 /**
- * Reescreve todas as URLs absolutas do agendazap para o proxy
+ * Reescreve todas as URLs absolutas do agendazap para o proxy.
+ * Trata AMBAS as formas:
+ *   - Normal:       https://agendazap.top
+ *   - JSON-escaped: https:\/\/agendazap.top  (barras escapadas em JS/JSON inline)
  */
 function rewriteAbsoluteUrls(text) {
-  return text.replace(/https?:\/\/(www\.)?agendazap\.top/gi, PREFIX);
+  // Forma normal: https://agendazap.top
+  text = text.replace(/https?:\/\/(www\.)?agendazap\.top/gi, PREFIX);
+  // Forma JSON-escaped: https:\/\/agendazap.top (literal backslash + slash)
+  text = text.replace(/https?:\\\/\\\/(www\\.)?agendazap\\.top/gi, PREFIX);
+  return text;
 }
 
 /**
@@ -43,7 +50,6 @@ function rewriteJs(js) {
   js = rewriteAbsoluteUrls(js);
 
   // Strings literais com paths absolutos: "/assets/...", '/p/...', etc
-  // Negative lookahead evita "//..." e paths ja com prefixo
   js = js.replace(/(["'])\/(?!\/|api\/proxy)([a-zA-Z])/g,
     '$1' + PREFIX + '/$2');
 
@@ -104,7 +110,6 @@ module.exports = async function handler(req, res) {
     var contentType = response.headers.get('content-type') || '';
 
     res.setHeader('Access-Control-Allow-Origin', '*');
-    // Impede cache para facilitar debug - remover depois
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
 
     if (contentType.includes('text/html')) {
