@@ -8,10 +8,8 @@ const PREFIX = '/api/proxy';
  *   - JSON-escaped: https:\/\/agendazap.top  (barras escapadas em JS/JSON inline)
  */
 function rewriteAbsoluteUrls(text) {
-  // Forma normal: https://agendazap.top
   text = text.replace(/https?:\/\/(www\.)?agendazap\.top/gi, PREFIX);
-  // Forma JSON-escaped: https:\/\/agendazap.top (literal backslash + slash)
-  text = text.replace(/https?:\\\/\\\/(www\\.)?agendazap\\.top/gi, PREFIX);
+  text = text.replace(/https?:\\\/\\\/(www\.)?agendazap\.top/gi, PREFIX);
   return text;
 }
 
@@ -20,16 +18,10 @@ function rewriteAbsoluteUrls(text) {
  */
 function rewriteHtml(html) {
   html = rewriteAbsoluteUrls(html);
-
-  // Atributos HTML: src, href, action, poster, data-*
   html = html.replace(/(src|href|action|poster|data-[a-z\-]+)=(["'])\/(?!\/|api\/proxy)/gi,
     '$1=$2' + PREFIX + '/');
-
-  // Strings JS inline dentro do HTML: "/path..." e '/path...'
-  // Captura aspas + / + letra (evita "/", "//", e paths ja reescritos)
   html = html.replace(/(["'])\/(?!\/|api\/proxy)([a-zA-Z])/g,
     '$1' + PREFIX + '/$2');
-
   return html;
 }
 
@@ -48,12 +40,50 @@ function rewriteCss(css) {
  */
 function rewriteJs(js) {
   js = rewriteAbsoluteUrls(js);
-
-  // Strings literais com paths absolutos: "/assets/...", '/p/...', etc
   js = js.replace(/(["'])\/(?!\/|api\/proxy)([a-zA-Z])/g,
     '$1' + PREFIX + '/$2');
-
   return js;
+}
+
+/**
+ * Reconstroi o caminho de destino a partir de req.query,
+ * pois o Vercel rewrite coloca os segmentos capturados em req.query.path
+ * e os query params originais em req.query.
+ */
+function buildTargetPath(req) {
+  // O Vercel rewrite "/:path*" coloca o match em req.query.path
+  var pathSegments = req.query.path;
+  var subPath = '';
+
+  if (Array.isArray(pathSegments)) {
+    subPath = pathSegments.join('/');
+  } else if (typeof pathSegments === 'string' && pathSegments) {
+    subPath = pathSegments;
+  }
+
+  // Reconstroi query string SEM o 'path' (que e do rewrite interno)
+  var qsParts = [];
+  var query = req.query || {};
+  var keys = Object.keys(query);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    if (k === 'path') continue; // param interno do rewrite
+    var v = query[k];
+    if (Array.isArray(v)) {
+      for (var j = 0; j < v.length; j++) {
+        qsParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v[j]));
+      }
+    } else {
+      qsParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v));
+    }
+  }
+
+  var targetPath = '/' + subPath;
+  if (qsParts.length > 0) {
+    targetPath += '?' + qsParts.join('&');
+  }
+
+  return targetPath;
 }
 
 module.exports = async function handler(req, res) {
@@ -68,14 +98,10 @@ module.exports = async function handler(req, res) {
   var targetUrl = '';
 
   try {
-    var rawUrl = req.url || '';
-    var targetPath = rawUrl;
+    var targetPath = buildTargetPath(req);
 
-    if (rawUrl.startsWith(PREFIX)) {
-      targetPath = rawUrl.substring(PREFIX.length);
-    }
-
-    if (!targetPath || targetPath === '/') {
+    // Se nao sobrou path, retorna info
+    if (targetPath === '/') {
       return res.status(200).json({ ok: true, message: 'Proxy funcionando!' });
     }
 
