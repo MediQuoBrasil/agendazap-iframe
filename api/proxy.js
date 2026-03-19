@@ -1,4 +1,54 @@
 const TARGET = 'https://agendazap.top';
+const PREFIX = '/api/proxy';
+
+/**
+ * Reescreve todas as URLs absolutas do agendazap para o proxy
+ */
+function rewriteAbsoluteUrls(text) {
+  return text.replace(/https?:\/\/(www\.)?agendazap\.top/gi, PREFIX);
+}
+
+/**
+ * Reescreve paths dentro de HTML
+ */
+function rewriteHtml(html) {
+  html = rewriteAbsoluteUrls(html);
+
+  // Atributos HTML: src, href, action, poster, data-*
+  html = html.replace(/(src|href|action|poster|data-[a-z\-]+)=(["'])\/(?!\/|api\/proxy)/gi,
+    '$1=$2' + PREFIX + '/');
+
+  // Strings JS inline dentro do HTML: "/path..." e '/path...'
+  // Captura aspas + / + letra (evita "/", "//", e paths ja reescritos)
+  html = html.replace(/(["'])\/(?!\/|api\/proxy)([a-zA-Z])/g,
+    '$1' + PREFIX + '/$2');
+
+  return html;
+}
+
+/**
+ * Reescreve paths dentro de CSS
+ */
+function rewriteCss(css) {
+  css = rewriteAbsoluteUrls(css);
+  css = css.replace(/url\(\s*(["']?)\/(?!\/|api\/proxy)/g,
+    'url($1' + PREFIX + '/');
+  return css;
+}
+
+/**
+ * Reescreve paths dentro de JS
+ */
+function rewriteJs(js) {
+  js = rewriteAbsoluteUrls(js);
+
+  // Strings literais com paths absolutos: "/assets/...", '/p/...', etc
+  // Negative lookahead evita "//..." e paths ja com prefixo
+  js = js.replace(/(["'])\/(?!\/|api\/proxy)([a-zA-Z])/g,
+    '$1' + PREFIX + '/$2');
+
+  return js;
+}
 
 module.exports = async function handler(req, res) {
   // CORS preflight
@@ -12,24 +62,19 @@ module.exports = async function handler(req, res) {
   var targetUrl = '';
 
   try {
-    // Extrai o caminho REAL da URL original (apos /api/proxy)
-    var prefix = '/api/proxy';
     var rawUrl = req.url || '';
     var targetPath = rawUrl;
 
-    // Remove o prefixo /api/proxy
-    if (rawUrl.startsWith(prefix)) {
-      targetPath = rawUrl.substring(prefix.length);
+    if (rawUrl.startsWith(PREFIX)) {
+      targetPath = rawUrl.substring(PREFIX.length);
     }
 
-    // Se nao sobrou path, retorna info
     if (!targetPath || targetPath === '/') {
-      return res.status(200).json({ ok: true, message: 'Proxy funcionando!', hint: 'Adicione um caminho apos /api/proxy/' });
+      return res.status(200).json({ ok: true, message: 'Proxy funcionando!' });
     }
 
     targetUrl = TARGET + targetPath;
 
-    // Headers simulando navegacao direta
     var headers = {
       'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Accept': req.headers['accept'] || 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -44,7 +89,6 @@ module.exports = async function handler(req, res) {
       redirect: 'follow'
     };
 
-    // Encaminha body para POST
     if (req.method === 'POST') {
       var chunks = [];
       await new Promise(function(resolve, reject) {
@@ -60,27 +104,28 @@ module.exports = async function handler(req, res) {
     var contentType = response.headers.get('content-type') || '';
 
     res.setHeader('Access-Control-Allow-Origin', '*');
+    // Impede cache para facilitar debug - remover depois
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
 
     if (contentType.includes('text/html')) {
       var html = await response.text();
-      // Reescreve URLs absolutas do agendazap para passar pelo proxy
-      html = html.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
-      // Reescreve caminhos absolutos em atributos src, href, action
-      // Negative lookahead evita duplicar o prefixo em URLs ja reescritas
-      html = html.replace(/(src|href|action)=(["'])\/(?!api\/proxy)/g, '$1=$2/api/proxy/');
+      html = rewriteHtml(html);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.status(response.status).send(html);
 
     } else if (contentType.includes('css')) {
       var css = await response.text();
-      css = css.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
-      css = css.replace(/url\(\s*(["']?)\/(?!api\/proxy)/g, 'url($1/api/proxy/');
+      css = rewriteCss(css);
       res.setHeader('Content-Type', contentType);
       return res.status(response.status).send(css);
 
-    } else if (contentType.includes('javascript') || contentType.includes('text/js')) {
+    } else if (
+      contentType.includes('javascript') ||
+      contentType.includes('text/js') ||
+      contentType.includes('ecmascript')
+    ) {
       var js = await response.text();
-      js = js.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
+      js = rewriteJs(js);
       res.setHeader('Content-Type', contentType);
       return res.status(response.status).send(js);
 
@@ -93,7 +138,11 @@ module.exports = async function handler(req, res) {
     }
 
   } catch (err) {
-    return res.status(500).json({ error: 'Proxy error', message: err.message, url: targetUrl || 'unknown' });
+    return res.status(500).json({
+      error: 'Proxy error',
+      message: err.message,
+      url: targetUrl || 'unknown'
+    });
   }
 };
 
