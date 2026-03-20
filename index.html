@@ -321,11 +321,11 @@
             <svg width="20" height="20" fill="none" stroke="#022647" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <span id="info-especialidade" style="font-weight:700; color:#022647; font-size:15px;"></span>
           </div>
-          <p style="font-size:13px; color:#5a7b91; margin:0;">Selecione e clique em agendar para carregar o formulário abaixo.</p>
+          <p id="info-descricao" style="font-size:13px; color:#5a7b91; margin:0;">Selecione e clique em agendar para carregar o formulário abaixo.</p>
         </div>
 
         <button id="btn-agendar" class="btn-primary" style="display:inline-flex; align-items:center; gap:8px; opacity:0.5; pointer-events:none;" onclick="abrirAgendamento()">
-          Agendar consulta
+          <span id="btn-agendar-texto">Agendar consulta</span>
         </button>
 
         <div id="iframe-wrapper" class="iframe-container" style="display:none;">
@@ -341,9 +341,9 @@
 const urls = {
   dermatologia: '/api/proxy/p/mediquo?service=767',
   ginecologia: '/api/proxy/p/mediquo?service=1348',
-  nutricao: '/api/proxy/p/mediquo?service=1174',
+  nutricao: 'https://docs.google.com/forms/d/e/1FAIpQLSdgvt0WPd61WQWfb1a-zLCzGyReFrRVeQVKDv06f147jaPlMQ/viewform?embedded=true',
   psicologia: '/api/proxy/p/mediquo?service=759',
-  treinadores: '/api/proxy/p/mediquo?service=824'
+  treinadores: 'https://docs.google.com/forms/d/e/1FAIpQLSdgvt0WPd61WQWfb1a-zLCzGyReFrRVeQVKDv06f147jaPlMQ/viewform?embedded=true'
 };
 
 const nomes = {
@@ -353,6 +353,9 @@ const nomes = {
   psicologia: 'Psicologia',
   treinadores: 'Treinadores'
 };
+
+// Especialidades que exigem anamnese (Google Form) antes do agendamento
+const anamnese = { nutricao: true, treinadores: true };
 
 // Navigation
 document.querySelectorAll('.nav-item:not(.disabled)').forEach(item => {
@@ -376,16 +379,31 @@ function atualizarSelecao() {
   const btn = document.getElementById('btn-agendar');
   const info = document.getElementById('especialidade-info');
   const infoText = document.getElementById('info-especialidade');
+  const infoDesc = document.getElementById('info-descricao');
+  const btnTexto = document.getElementById('btn-agendar-texto');
 
   if (esp) {
     btn.style.opacity = '1';
     btn.style.pointerEvents = 'auto';
     infoText.textContent = nomes[esp];
     info.style.display = 'block';
+
+    if (anamnese[esp]) {
+      infoDesc.textContent = 'Pré-requisito: preencha o formulário de anamnese antes de agendar sua consulta. Ao final, você receberá o link para agendamento.';
+      btnTexto.textContent = 'Preencher anamnese';
+      info.style.background = '#fef9ee';
+      info.style.borderColor = '#e8c96d';
+    } else {
+      infoDesc.textContent = 'Selecione e clique em agendar para carregar o formulário abaixo.';
+      btnTexto.textContent = 'Agendar consulta';
+      info.style.background = '#f0f7fb';
+      info.style.borderColor = '#b8d8ea';
+    }
   } else {
     btn.style.opacity = '0.5';
     btn.style.pointerEvents = 'none';
     info.style.display = 'none';
+    btnTexto.textContent = 'Agendar consulta';
   }
   // Esconde iframe anterior ao mudar seleção
   document.getElementById('iframe-wrapper').style.display = 'none';
@@ -398,6 +416,8 @@ function abrirAgendamento() {
   const iframe = document.getElementById('agendamento-iframe');
   const wrapper = document.getElementById('iframe-wrapper');
   iframe.src = urls[esp];
+  // Google Forms precisa de mais altura
+  iframe.style.height = anamnese[esp] ? '900px' : '700px';
   wrapper.style.display = 'block';
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
