@@ -219,70 +219,67 @@
     .content-card { padding: 24px; }
   }
 
-  /* MEDIQUO WIDGET - Contido na área de conteúdo via CSS */
-  /* O widget é inserido dentro de #widget-host-container */
-  #widget-host-container {
-    display: none;
-    position: relative;
-    width: 100%;
-    height: 700px;
-    border: 2px solid #d0dce5;
-    border-radius: 8px;
-    overflow: hidden;
-    background: #fff;
-    margin-top: 20px;
-  }
-  #widget-host-container.active {
-    display: block;
-  }
-  /* Força todos os elementos do MediQuo a preencher o container */
-  #widget-host-container div[id*="mediquo"],
-  #widget-host-container div[class*="mediquo"],
-  #widget-host-container div[id*="Mediquo"],
-  #widget-host-container div[class*="Mediquo"] {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    max-width: none !important;
-    max-height: none !important;
-    border-radius: 0 !important;
-    z-index: 1 !important;
-  }
-  #widget-host-container iframe {
-    width: 100% !important;
-    height: 100% !important;
+  /* MEDIQUO WIDGET - Reposiciona via CSS os iframes que o SDK injeta no body */
+  /* Sempre esconde o launcher - usamos nosso próprio botão */
+  #MediquoLauncher {
+    display: none !important;
   }
 
-  /* BOTÃO FECHAR WIDGET MEDIQUO - Discreto X */
+  /* Quando widget está aberto, reposiciona o MediquoContainer para preencher área de conteúdo */
+  body.widget-open #MediquoContainer {
+    left: 260px !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: 0 !important;
+    width: calc(100% - 260px) !important;
+    height: 100vh !important;
+    min-width: 0 !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  @media (max-width: 768px) {
+    body.widget-open #MediquoContainer {
+      left: 0 !important;
+      width: 100% !important;
+      top: 0 !important;
+      height: 100vh !important;
+      max-height: 100vh !important;
+    }
+  }
+
+  /* Botão voltar/fechar - circular discreto sobre o widget */
   #widget-close-btn {
     display: none;
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 100;
-    background: rgba(2, 38, 71, 0.85);
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 2147483647;
+    background: rgba(2, 38, 71, 0.8);
     color: #fff;
-    border: none;
+    border: 2px solid rgba(255,255,255,0.3);
     border-radius: 50%;
-    width: 32px;
-    height: 32px;
-    font-size: 16px;
-    line-height: 32px;
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+    line-height: 36px;
     text-align: center;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
     transition: background 0.2s;
     padding: 0;
   }
-  #widget-close-btn:hover { background: #c0392b; }
-
+  #widget-close-btn:hover { background: rgba(192, 57, 43, 0.9); }
   @media (max-width: 768px) {
-    #widget-host-container {
-      height: 600px;
+    #widget-close-btn {
+      top: 10px;
+      right: 10px;
+      width: 34px;
+      height: 34px;
+      font-size: 16px;
     }
   }
 </style>
@@ -292,6 +289,7 @@
 ></script>
 </head>
 <body>
+<button id="widget-close-btn" onclick="fecharMediquo()">←</button>
 
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
@@ -361,11 +359,6 @@
         <p class="note">O uso deste serviço está incluso no seu plano sem custo.</p>
         <button class="btn-primary" id="btn-iniciar-atendimento" onclick="iniciarAtendimentoMediquo()">Iniciar Atendimento</button>
         <p id="atendimento-status" style="margin-top:12px; font-size:13px; color:#5a7b91; display:none;"></p>
-
-        <!-- Container do widget MediQuo - renderizado aqui dentro -->
-        <div id="widget-host-container">
-          <button id="widget-close-btn" onclick="fecharMediquo()">✕</button>
-        </div>
       </div>
     </div>
   </div>
@@ -445,10 +438,15 @@ document.querySelectorAll('.nav-item:not(.disabled)').forEach(function(item) {
       document.getElementById('iframe-wrapper').style.display = 'none';
       document.getElementById('agendamento-iframe').src = '';
     }
-    // Fecha widget MediQuo se estiver aberto ao trocar de página
-    if (page !== 'consultas' && mediquoInitialized) {
+    // Fecha widget MediQuo ao trocar de página
+    if (page !== 'consultas' && mediquoInitialized && document.body.classList.contains('widget-open')) {
       fecharMediquo();
     }
+    // Restaura content-area ao navegar
+    var ca = document.getElementById('page-consultas').querySelector('.content-area');
+    if (ca) ca.style.display = '';
+    var bc = document.getElementById('page-consultas').querySelector('.breadcrumb');
+    if (bc) bc.style.display = '';
   });
 });
 
@@ -503,83 +501,45 @@ function abrirAgendamento() {
 // ============================
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0s1-gbIMh4oOiCaTs76VcOjjOzOwEwD12a_5-0rfSMfcl1byxMYKSu9-qh7XGoVIVZA/exec";
 var mediquoInitialized = false;
-var widgetMoveObserver = null;
-
-// Move elementos do MediQuo para dentro do container host
-function moveWidgetToContainer() {
-  var container = document.getElementById('widget-host-container');
-  if (!container) return;
-
-  // Busca elementos MediQuo que foram injetados no body
-  var els = document.querySelectorAll('body > div[id*="mediquo"], body > div[class*="mediquo"], body > div[id*="Mediquo"], body > div[class*="Mediquo"]');
-  els.forEach(function(el) {
-    if (!container.contains(el)) {
-      container.appendChild(el);
-    }
-  });
-
-  // Busca iframes do mediquo no body
-  var iframes = document.querySelectorAll('body > iframe[src*="mediquo"], body > iframe[src*="widget.mediquo"]');
-  iframes.forEach(function(iframe) {
-    if (!container.contains(iframe)) {
-      container.appendChild(iframe);
-    }
-  });
-}
 
 function fecharMediquo() {
-  // Para o observer
-  if (widgetMoveObserver) {
-    widgetMoveObserver.disconnect();
-    widgetMoveObserver = null;
-  }
+  // Fecha o widget (não destrói - preserva sessão)
+  try { MediquoWidget.close(); } catch(e) {}
 
-  // Destroy widget
-  try { MediquoWidget.destroy(); } catch(e) {}
-  mediquoInitialized = false;
+  // Remove classe do body que reposiciona o container
+  document.body.classList.remove('widget-open');
 
-  // Limpa o container (remove elementos do widget)
-  var container = document.getElementById('widget-host-container');
-  if (container) {
-    // Mantém só o botão de fechar, remove o resto
-    var closeBtn = document.getElementById('widget-close-btn');
-    while (container.firstChild) {
-      container.removeChild(container.firstChild);
-    }
-    if (closeBtn) container.appendChild(closeBtn);
-    container.classList.remove('active');
-  }
-
-  // Esconde botão de fechar
+  // Esconde botão de voltar
   document.getElementById('widget-close-btn').style.display = 'none';
 
-  // Restaura botão
+  // Restaura conteúdo da página
+  var contentArea = document.getElementById('page-consultas').querySelector('.content-area');
+  if (contentArea) contentArea.style.display = '';
+  var breadcrumb = document.getElementById('page-consultas').querySelector('.breadcrumb');
+  if (breadcrumb) breadcrumb.style.display = '';
+
+  // Atualiza botão para reabrir
   var btn = document.getElementById('btn-iniciar-atendimento');
-  var status = document.getElementById('atendimento-status');
-  btn.textContent = 'Iniciar Atendimento';
+  btn.textContent = 'Abrir Atendimento';
   btn.style.opacity = '1';
   btn.style.pointerEvents = 'auto';
+  var status = document.getElementById('atendimento-status');
   status.style.display = 'none';
 }
 
 function abrirWidget() {
   MediquoWidget.open();
 
-  var container = document.getElementById('widget-host-container');
-  container.classList.add('active');
+  // Adiciona classe ao body - CSS reposiciona #MediquoContainer
+  document.body.classList.add('widget-open');
+
+  // Mostra botão de voltar
   document.getElementById('widget-close-btn').style.display = 'block';
 
-  // Move elementos para o container e observa por novos
-  moveWidgetToContainer();
-
-  if (widgetMoveObserver) widgetMoveObserver.disconnect();
-  widgetMoveObserver = new MutationObserver(function(mutations) {
-    moveWidgetToContainer();
-  });
-  widgetMoveObserver.observe(document.body, { childList: true });
-
-  // Scroll para ver o widget
-  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Esconde conteúdo da página
+  document.getElementById('page-consultas').querySelector('.content-area').style.display = 'none';
+  var breadcrumb = document.getElementById('page-consultas').querySelector('.breadcrumb');
+  if (breadcrumb) breadcrumb.style.display = 'none';
 }
 
 function iniciarAtendimentoMediquo() {
@@ -595,6 +555,7 @@ function iniciarAtendimentoMediquo() {
   btn.style.opacity = '0.7';
   btn.style.pointerEvents = 'none';
   status.style.display = 'block';
+  status.style.color = '#5a7b91';
   status.textContent = 'Conectando ao serviço de atendimento...';
 
   fetch(APPS_SCRIPT_URL, {
@@ -636,9 +597,10 @@ function iniciarAtendimentoMediquo() {
 
       mediquoInitialized = true;
 
+      // Aguarda o SDK injetar os iframes e depois abre
       setTimeout(function() {
         abrirWidget();
-      }, 500);
+      }, 600);
 
       status.textContent = 'Atendimento iniciado!';
       status.style.color = '#27ae60';
