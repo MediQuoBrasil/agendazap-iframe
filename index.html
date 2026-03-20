@@ -218,6 +218,29 @@
     .content-area { padding: 20px; }
     .content-card { padding: 24px; }
   }
+ /* MEDIQUO WIDGET - FORÇAR TAMANHO COMPLETO NA ÁREA DE CONTEÚDO */
+#mediquo-widget-container,
+#mediquo-widget,
+div[id*="mediquo"] {
+  position: fixed !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  width: calc(100% - 260px) !important;
+  height: 100vh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  z-index: 999 !important;
+}
+/* Em mobile a sidebar fica em cima, widget ocupa tudo */
+@media (max-width: 768px) {
+  #mediquo-widget-container,
+  #mediquo-widget,
+  div[id*="mediquo"] {
+    width: 100% !important;
+    height: calc(100vh - 200px) !important;
+  }
+}
 </style>
  <script
   type="text/javascript"
@@ -469,20 +492,22 @@ function iniciarAtendimentoMediquo() {
     }
 
     try {
-      MediquoWidget.init({
-        apiKey: data.apiKey,
-        theme: {
-          locale: "pt",
-          position: "right",
-          launcher: "hidden",
-          colors: {
-            primary: "#022647"
-          },
-          text: {
-            title: "MAG Seguros - Atendimento 24h"
-          }
-        }
-      });
+MediquoWidget.init({
+  apiKey: data.apiKey,
+  isMobileView: true,
+  theme: {
+    locale: "pt",
+    position: "right",
+    launcher: "hidden",
+    hideCloseButton: "true",
+    colors: {
+      primary: "#022647"
+    },
+    text: {
+      title: "MAG Seguros - Atendimento 24h"
+    }
+  }
+});
 
       mediquoInitialized = true;
 
