@@ -400,6 +400,18 @@
         <div id="iframe-wrapper" class="iframe-container" style="display:none;">
           <iframe id="agendamento-iframe" src="" allow="camera; microphone"></iframe>
         </div>
+
+        <!-- Botão pós-anamnese: aparece SOMENTE após envio do Google Form (2o load do iframe) -->
+        <div id="pos-anamnese" style="display:none; margin-top:20px; padding:22px 24px; background:#e8f5e9; border:2px solid #43a047; border-radius:8px; text-align:center;">
+          <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:8px;">
+            <svg width="24" height="24" fill="#2e7d32" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            <span style="font-size:16px; color:#2e7d32; font-weight:700;">Anamnese enviada com sucesso!</span>
+          </div>
+          <p style="font-size:13px; color:#558b2f; margin-bottom:16px;">Agora clique abaixo para agendar sua consulta com o especialista.</p>
+          <button class="btn-primary" style="background:#2e7d32; font-size:15px; padding:14px 32px;" onclick="abrirAgendamentoPosAnamnese()">
+            Agendar consulta agora
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -425,6 +437,12 @@ var nomes = {
 
 var anamnese = { nutricao: true, treinadores: true };
 
+// URLs de agendamento pós-anamnese (via proxy)
+var anamneseAgendamentoUrls = {
+  nutricao: '/api/proxy/p/mediquo?service=1174',
+  treinadores: '/api/proxy/p/mediquo?service=824'
+};
+
 // Navigation
 document.querySelectorAll('.nav-item:not(.disabled)').forEach(function(item) {
   item.addEventListener('click', function() {
@@ -437,6 +455,10 @@ document.querySelectorAll('.nav-item:not(.disabled)').forEach(function(item) {
     if (page !== 'agendamento') {
       document.getElementById('iframe-wrapper').style.display = 'none';
       document.getElementById('agendamento-iframe').src = '';
+      document.getElementById('agendamento-iframe').removeEventListener('load', onIframeLoad);
+      document.getElementById('pos-anamnese').style.display = 'none';
+      iframeLoadCount = 0;
+      isAnamneseFlow = false;
     }
     // Fecha widget MediQuo ao trocar de página
     if (page !== 'consultas' && mediquoInitialized && document.body.classList.contains('widget-open')) {
@@ -465,7 +487,7 @@ function atualizarSelecao() {
     info.style.display = 'block';
 
     if (anamnese[esp]) {
-      infoDesc.textContent = 'Pré-requisito: preencha o formulário de anamnese antes de agendar sua consulta. Ao final, você receberá o link para agendamento.';
+      infoDesc.textContent = 'Preencha o formulário de anamnese. Ao enviar, o botão para agendar sua consulta aparecerá automaticamente.';
       btnTexto.textContent = 'Preencher anamnese';
       info.style.background = '#fef9ee';
       info.style.borderColor = '#e8c96d';
@@ -483,6 +505,26 @@ function atualizarSelecao() {
   }
   document.getElementById('iframe-wrapper').style.display = 'none';
   document.getElementById('agendamento-iframe').src = '';
+  document.getElementById('agendamento-iframe').removeEventListener('load', onIframeLoad);
+  document.getElementById('pos-anamnese').style.display = 'none';
+  iframeLoadCount = 0;
+  isAnamneseFlow = false;
+}
+
+// Contador de loads do iframe para detectar envio do Google Form
+var iframeLoadCount = 0;
+var isAnamneseFlow = false;
+
+function onIframeLoad() {
+  if (!isAnamneseFlow) return;
+  iframeLoadCount++;
+  // 1o load = formulário carregou
+  // 2o load = formulário foi enviado (página de agradecimento)
+  if (iframeLoadCount >= 2) {
+    var posAnamnese = document.getElementById('pos-anamnese');
+    posAnamnese.style.display = 'block';
+    posAnamnese.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 function abrirAgendamento() {
@@ -490,10 +532,44 @@ function abrirAgendamento() {
   if (!esp) { alert('Por favor, selecione uma especialidade.'); return; }
   var iframe = document.getElementById('agendamento-iframe');
   var wrapper = document.getElementById('iframe-wrapper');
+  var posAnamnese = document.getElementById('pos-anamnese');
+
+  // Reset estado
+  posAnamnese.style.display = 'none';
+  iframeLoadCount = 0;
+  isAnamneseFlow = !!anamnese[esp];
+
+  // Remove listener antigo e adiciona novo (evita duplicação)
+  iframe.removeEventListener('load', onIframeLoad);
+  if (isAnamneseFlow) {
+    iframe.addEventListener('load', onIframeLoad);
+  }
+
   iframe.src = urls[esp];
   iframe.style.height = anamnese[esp] ? '900px' : '700px';
   wrapper.style.display = 'block';
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function abrirAgendamentoPosAnamnese() {
+  var esp = document.getElementById('especialidade').value;
+  if (!esp || !anamneseAgendamentoUrls[esp]) return;
+  var iframe = document.getElementById('agendamento-iframe');
+  var posAnamnese = document.getElementById('pos-anamnese');
+
+  // Desativa detecção de load (não é mais Google Form)
+  isAnamneseFlow = false;
+  iframe.removeEventListener('load', onIframeLoad);
+
+  // Troca o iframe do Google Form para o agendamento
+  iframe.src = anamneseAgendamentoUrls[esp];
+  iframe.style.height = '700px';
+
+  // Esconde o botão pós-anamnese
+  posAnamnese.style.display = 'none';
+
+  // Scroll para o iframe
+  document.getElementById('iframe-wrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ============================
