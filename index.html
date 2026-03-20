@@ -428,40 +428,39 @@ function abrirAgendamento() {
   wrapper.style.display = 'block';
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
- // ============================
+// ============================
 // MEDIQUO WIDGET - ATENDIMENTO 24H
 // ============================
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxHtJKAbcOgnBFS1zpAPFRjPTLhbAYMINgDz0xJ5pqjMCdFY2EhbQQwz1uYAnotFAyW-w/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0s1-gbIMh4oOiCaTs76VcOjjOzOwEwD12a_5-0rfSMfcl1byxMYKSu9-qh7XGoVIVZA/exec";
 var mediquoInitialized = false;
 
 function iniciarAtendimentoMediquo() {
   var btn = document.getElementById('btn-iniciar-atendimento');
   var status = document.getElementById('atendimento-status');
 
-  // Se já foi inicializado, apenas abre o widget
   if (mediquoInitialized) {
     MediquoWidget.open();
     return;
   }
 
-  // Feedback visual
   btn.textContent = 'Carregando...';
   btn.style.opacity = '0.7';
   btn.style.pointerEvents = 'none';
   status.style.display = 'block';
   status.textContent = 'Conectando ao serviço de atendimento...';
 
-  // Busca a API Key via Apps Script (JSONP para contornar CORS)
-  var callbackName = '_mediquoCb_' + Date.now();
-
-  window[callbackName] = function(data) {
-    // Limpa
-    var scriptEl = document.getElementById('mediquo-jsonp');
-    if (scriptEl) scriptEl.remove();
-    delete window[callbackName];
-
+  fetch(APPS_SCRIPT_URL, {
+    redirect: "follow",
+    method: "POST",
+    body: JSON.stringify({ origin: window.location.origin }),
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    }
+  })
+  .then(function(response) { return response.json(); })
+  .then(function(data) {
     if (data.error) {
-      status.textContent = 'Erro de autorização. Tente novamente.';
+      status.textContent = 'Erro de autorização: ' + data.error;
       status.style.color = '#c0392b';
       btn.textContent = 'Iniciar Atendimento';
       btn.style.opacity = '1';
@@ -469,7 +468,6 @@ function iniciarAtendimentoMediquo() {
       return;
     }
 
-    // Inicializa o widget MediQuo
     try {
       MediquoWidget.init({
         apiKey: data.apiKey,
@@ -488,7 +486,6 @@ function iniciarAtendimentoMediquo() {
 
       mediquoInitialized = true;
 
-      // Abre o widget automaticamente
       setTimeout(function() {
         MediquoWidget.open();
       }, 500);
@@ -506,24 +503,14 @@ function iniciarAtendimentoMediquo() {
       btn.style.opacity = '1';
       btn.style.pointerEvents = 'auto';
     }
-  };
-
-  // Cria tag script JSONP
-  var origin = encodeURIComponent(window.location.origin);
-  var s = document.createElement('script');
-  s.id = 'mediquo-jsonp';
-  s.src = APPS_SCRIPT_URL + '?callback=' + callbackName + '&origin=' + origin;
-
-  s.onerror = function() {
+  })
+  .catch(function(err) {
     status.textContent = 'Erro de conexão com o servidor. Tente novamente.';
     status.style.color = '#c0392b';
     btn.textContent = 'Iniciar Atendimento';
     btn.style.opacity = '1';
     btn.style.pointerEvents = 'auto';
-    delete window[callbackName];
-  };
-
-  document.body.appendChild(s);
+  });
 }
 </script>
 
