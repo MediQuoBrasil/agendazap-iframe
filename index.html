@@ -246,24 +246,37 @@
   }
 
   /* BOTÃO FECHAR WIDGET MEDIQUO */
+/* MEDIQUO WIDGET - Redimensionado via JS, não via CSS genérico */
+  /* Nenhuma regra CSS genérica para o widget - tudo controlado pelo JS */
+
+  /* BOTÃO FECHAR WIDGET MEDIQUO */
   #widget-close-btn {
     display: none;
     position: fixed;
-    top: 12px;
-    right: 16px;
-    z-index: 10000;
-    background: #022647;
+    top: 16px;
+    right: 24px;
+    z-index: 2147483647;
+    background: #c0392b;
     color: #fff;
     border: none;
     border-radius: 8px;
-    padding: 8px 18px;
+    padding: 10px 22px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
     transition: background 0.2s;
+    letter-spacing: 0.3px;
   }
-  #widget-close-btn:hover { background: #c0392b; }
+  #widget-close-btn:hover { background: #a93226; }
+  @media (max-width: 768px) {
+    #widget-close-btn {
+      top: 8px;
+      right: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+  }
 </style>
 <script
   type="text/javascript"
@@ -477,15 +490,85 @@ function abrirAgendamento() {
 // ============================
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0s1-gbIMh4oOiCaTs76VcOjjOzOwEwD12a_5-0rfSMfcl1byxMYKSu9-qh7XGoVIVZA/exec";
 var mediquoInitialized = false;
+var widgetObserver = null;
+var widgetResizeInterval = null;
+
+function getWidgetElements() {
+  // Procura todos os elementos que o MediQuo injeta no DOM
+  var candidates = [];
+  // Busca por iframes do mediquo
+  var iframes = document.querySelectorAll('iframe[src*="mediquo"], iframe[src*="widget"]');
+  iframes.forEach(function(iframe) {
+    candidates.push(iframe);
+    if (iframe.parentElement) candidates.push(iframe.parentElement);
+    if (iframe.parentElement && iframe.parentElement.parentElement) candidates.push(iframe.parentElement.parentElement);
+  });
+  // Busca por divs com id ou class contendo mediquo (exceto nosso botão)
+  document.querySelectorAll('div[id*="mediquo"], div[class*="mediquo"], div[id*="Mediquo"], div[class*="Mediquo"]').forEach(function(el) {
+    candidates.push(el);
+  });
+  return candidates;
+}
+
+function applyWidgetSize() {
+  var isMobile = window.innerWidth <= 768;
+  var sidebarWidth = isMobile ? 0 : 260;
+  var elements = getWidgetElements();
+
+  elements.forEach(function(el) {
+    if (el.tagName === 'IFRAME') {
+      el.style.setProperty('width', '100%', 'important');
+      el.style.setProperty('height', '100%', 'important');
+    } else {
+      el.style.setProperty('position', 'fixed', 'important');
+      el.style.setProperty('bottom', '0', 'important');
+      el.style.setProperty('right', '0', 'important');
+      el.style.setProperty('left', sidebarWidth + 'px', 'important');
+      el.style.setProperty('top', '0', 'important');
+      el.style.setProperty('width', 'calc(100% - ' + sidebarWidth + 'px)', 'important');
+      el.style.setProperty('height', '100vh', 'important');
+      el.style.setProperty('max-width', 'none', 'important');
+      el.style.setProperty('max-height', 'none', 'important');
+      el.style.setProperty('border-radius', '0', 'important');
+      el.style.setProperty('z-index', '999999', 'important');
+    }
+  });
+}
+
+function startWidgetResize() {
+  // Aplica imediatamente e depois a cada 200ms por 5 segundos (para pegar elementos tardios)
+  applyWidgetSize();
+  var attempts = 0;
+  widgetResizeInterval = setInterval(function() {
+    applyWidgetSize();
+    attempts++;
+    if (attempts > 25) clearInterval(widgetResizeInterval);
+  }, 200);
+
+  // Observer para pegar novos elementos que o widget injeta
+  if (widgetObserver) widgetObserver.disconnect();
+  widgetObserver = new MutationObserver(function() {
+    applyWidgetSize();
+  });
+  widgetObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+function stopWidgetResize() {
+  if (widgetResizeInterval) clearInterval(widgetResizeInterval);
+  if (widgetObserver) widgetObserver.disconnect();
+}
 
 function fecharMediquo() {
+  stopWidgetResize();
   MediquoWidget.destroy();
   mediquoInitialized = false;
-  document.body.classList.remove('widget-active');
   document.getElementById('widget-close-btn').style.display = 'none';
 
   var contentArea = document.getElementById('page-consultas').querySelector('.content-area');
   if (contentArea) contentArea.style.display = '';
+
+  var breadcrumb = document.getElementById('page-consultas').querySelector('.breadcrumb');
+  if (breadcrumb) breadcrumb.style.display = '';
 
   var btn = document.getElementById('btn-iniciar-atendimento');
   var status = document.getElementById('atendimento-status');
@@ -495,15 +578,21 @@ function fecharMediquo() {
   status.style.display = 'none';
 }
 
+function abrirWidget() {
+  MediquoWidget.open();
+  document.getElementById('widget-close-btn').style.display = 'block';
+  document.getElementById('page-consultas').querySelector('.content-area').style.display = 'none';
+  var breadcrumb = document.getElementById('page-consultas').querySelector('.breadcrumb');
+  if (breadcrumb) breadcrumb.style.display = 'none';
+  startWidgetResize();
+}
+
 function iniciarAtendimentoMediquo() {
   var btn = document.getElementById('btn-iniciar-atendimento');
   var status = document.getElementById('atendimento-status');
 
   if (mediquoInitialized) {
-    MediquoWidget.open();
-    document.body.classList.add('widget-active');
-    document.getElementById('widget-close-btn').style.display = 'block';
-    document.getElementById('page-consultas').querySelector('.content-area').style.display = 'none';
+    abrirWidget();
     return;
   }
 
@@ -553,10 +642,7 @@ function iniciarAtendimentoMediquo() {
       mediquoInitialized = true;
 
       setTimeout(function() {
-        MediquoWidget.open();
-        document.body.classList.add('widget-active');
-        document.getElementById('widget-close-btn').style.display = 'block';
-        document.getElementById('page-consultas').querySelector('.content-area').style.display = 'none';
+        abrirWidget();
       }, 500);
 
       status.textContent = 'Atendimento iniciado!';
@@ -581,6 +667,11 @@ function iniciarAtendimentoMediquo() {
     btn.style.pointerEvents = 'auto';
   });
 }
+
+// Reajusta ao redimensionar a janela
+window.addEventListener('resize', function() {
+  if (mediquoInitialized) applyWidgetSize();
+});
 </script>
 
 </body>
