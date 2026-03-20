@@ -141,6 +141,24 @@ module.exports = async function handler(req, res) {
       // Negative lookahead prevents doubling /api/proxy/ on already-rewritten URLs
       html = html.replace(/(src|href|action)=(["'])\/(?!api\/proxy)/g, '$1=$2/api/proxy/');
 
+      // Inject script to open Google Calendar link as popup window instead of new tab
+      var calendarPopupScript = '<script>' +
+        '(function(){' +
+        'document.addEventListener("click",function(e){' +
+        'var link=e.target.closest("a[href*=\\"calendar.google.com\\"]");' +
+        'if(link){' +
+        'e.preventDefault();' +
+        'e.stopPropagation();' +
+        'var w=600,h=650;' +
+        'var l=Math.round((screen.width-w)/2);' +
+        'var t=Math.round((screen.height-h)/2);' +
+        'window.open(link.href,"gcal_popup","width="+w+",height="+h+",left="+l+",top="+t+",scrollbars=yes,resizable=yes");' +
+        '}' +
+        '},true);' +
+        '})();' +
+        '</script>';
+      html = html.replace('</body>', calendarPopupScript + '</body>');
+
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.status(response.status).send(html);
 
