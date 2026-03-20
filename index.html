@@ -219,6 +219,10 @@
     .content-card { padding: 24px; }
   }
 </style>
+ <script
+  type="text/javascript"
+  src="https://widget.mediquo.com/js/1.0.0/mediquo.js"
+></script>
 </head>
 <body>
 
@@ -288,7 +292,10 @@
         <h1>Pronto Atendimento Online de Clínico Geral – 24h<br><span style="font-size:18px;font-weight:400;color:#4a6a80">&amp;</span><br>Consultas agendadas (Dermatologia, Ginecologia, Nutrição, Psicologia, Treinadores)</h1>
         <p class="subtitle">Faça uma consulta com médico clínico geral agora, ou realize a sua consulta agendada. Médico clínico disponível 24h.</p>
         <p class="note">O uso deste serviço está incluso no seu plano sem custo.</p>
-        <button class="btn-primary" onclick="alert('Redirecionando para atendimento...')">Iniciar Atendimento</button>
+        <button class="btn-primary" id="btn-iniciar-atendimento" onclick="iniciarAtendimentoMediquo()">
+  Iniciar Atendimento
+</button>
+<p id="atendimento-status" style="margin-top:12px; font-size:13px; color:#5a7b91; display:none;"></p>
       </div>
     </div>
   </div>
@@ -420,6 +427,103 @@ function abrirAgendamento() {
   iframe.style.height = anamnese[esp] ? '900px' : '700px';
   wrapper.style.display = 'block';
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+ // ============================
+// MEDIQUO WIDGET - ATENDIMENTO 24H
+// ============================
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxHtJKAbcOgnBFS1zpAPFRjPTLhbAYMINgDz0xJ5pqjMCdFY2EhbQQwz1uYAnotFAyW-w/exec";
+var mediquoInitialized = false;
+
+function iniciarAtendimentoMediquo() {
+  var btn = document.getElementById('btn-iniciar-atendimento');
+  var status = document.getElementById('atendimento-status');
+
+  // Se já foi inicializado, apenas abre o widget
+  if (mediquoInitialized) {
+    MediquoWidget.open();
+    return;
+  }
+
+  // Feedback visual
+  btn.textContent = 'Carregando...';
+  btn.style.opacity = '0.7';
+  btn.style.pointerEvents = 'none';
+  status.style.display = 'block';
+  status.textContent = 'Conectando ao serviço de atendimento...';
+
+  // Busca a API Key via Apps Script (JSONP para contornar CORS)
+  var callbackName = '_mediquoCb_' + Date.now();
+
+  window[callbackName] = function(data) {
+    // Limpa
+    var scriptEl = document.getElementById('mediquo-jsonp');
+    if (scriptEl) scriptEl.remove();
+    delete window[callbackName];
+
+    if (data.error) {
+      status.textContent = 'Erro de autorização. Tente novamente.';
+      status.style.color = '#c0392b';
+      btn.textContent = 'Iniciar Atendimento';
+      btn.style.opacity = '1';
+      btn.style.pointerEvents = 'auto';
+      return;
+    }
+
+    // Inicializa o widget MediQuo
+    try {
+      MediquoWidget.init({
+        apiKey: data.apiKey,
+        theme: {
+          locale: "pt",
+          position: "right",
+          launcher: "hidden",
+          colors: {
+            primary: "#022647"
+          },
+          text: {
+            title: "MAG Seguros - Atendimento 24h"
+          }
+        }
+      });
+
+      mediquoInitialized = true;
+
+      // Abre o widget automaticamente
+      setTimeout(function() {
+        MediquoWidget.open();
+      }, 500);
+
+      status.textContent = 'Atendimento iniciado! O chat aparecerá na tela.';
+      status.style.color = '#27ae60';
+      btn.textContent = 'Abrir Atendimento';
+      btn.style.opacity = '1';
+      btn.style.pointerEvents = 'auto';
+
+    } catch (err) {
+      status.textContent = 'Erro ao iniciar o widget. Recarregue a página.';
+      status.style.color = '#c0392b';
+      btn.textContent = 'Iniciar Atendimento';
+      btn.style.opacity = '1';
+      btn.style.pointerEvents = 'auto';
+    }
+  };
+
+  // Cria tag script JSONP
+  var origin = encodeURIComponent(window.location.origin);
+  var s = document.createElement('script');
+  s.id = 'mediquo-jsonp';
+  s.src = APPS_SCRIPT_URL + '?callback=' + callbackName + '&origin=' + origin;
+
+  s.onerror = function() {
+    status.textContent = 'Erro de conexão com o servidor. Tente novamente.';
+    status.style.color = '#c0392b';
+    btn.textContent = 'Iniciar Atendimento';
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+    delete window[callbackName];
+  };
+
+  document.body.appendChild(s);
 }
 </script>
 
