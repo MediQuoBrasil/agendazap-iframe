@@ -156,6 +156,10 @@ module.exports = async function handler(req, res) {
       // Handle both escaped and unescaped URLs in JS files
       js = js.replace(/https?:\\\/\\\/(www\.)?agendazap\.top/gi, '\\/api\\/proxy');
       js = js.replace(/https?:\/\/(www\.)?agendazap\.top/gi, '/api/proxy');
+      // FIX: Rewrite root-relative /assets/ paths in JS string literals
+      // e.g. utilsScript: '/assets/js/tel_input/utils.js' -> '/api/proxy/assets/...'
+      // Do NOT rewrite /index.php/ paths - they use GlobalVariables.baseUrl + prefix already
+      js = js.replace(/(['"])\/assets\//g, '$1/api/proxy/assets/');
       res.setHeader('Content-Type', contentType);
       return res.status(response.status).send(js);
 
