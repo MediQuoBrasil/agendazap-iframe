@@ -241,6 +241,25 @@ div[id*="mediquo"] {
     height: calc(100vh - 200px) !important;
   }
 }
+ /* BOTÃO FECHAR WIDGET MEDIQUO */
+#mediquo-close-btn {
+  display: none;
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 10000;
+  background: #022647;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  transition: background 0.2s;
+}
+#mediquo-close-btn:hover { background: #c0392b; }
 </style>
  <script
   type="text/javascript"
@@ -248,6 +267,7 @@ div[id*="mediquo"] {
 ></script>
 </head>
 <body>
+ <button id="mediquo-close-btn" onclick="fecharMediquo()">✕ Fechar Atendimento</button>
 
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
@@ -403,7 +423,26 @@ document.querySelectorAll('.nav-item:not(.disabled)').forEach(item => {
     }
   });
 });
+function fecharMediquo() {
+  MediquoWidget.destroy();
+  mediquoInitialized = false;
 
+  // Esconde o botão de fechar
+  document.getElementById('mediquo-close-btn').style.display = 'none';
+
+  // Restaura o conteúdo da página
+  var contentArea = document.getElementById('page-consultas').querySelector('.content-area');
+  if (contentArea) contentArea.style.display = '';
+
+  // Reseta o botão e status
+  var btn = document.getElementById('btn-iniciar-atendimento');
+  var status = document.getElementById('atendimento-status');
+  btn.textContent = 'Iniciar Atendimento';
+  btn.style.opacity = '1';
+  btn.style.pointerEvents = 'auto';
+  status.style.display = 'none';
+}
+ 
 function atualizarSelecao() {
   const esp = document.getElementById('especialidade').value;
   const btn = document.getElementById('btn-agendar');
@@ -511,9 +550,13 @@ MediquoWidget.init({
 
       mediquoInitialized = true;
 
-      setTimeout(function() {
-        MediquoWidget.open();
-      }, 500);
+setTimeout(function() {
+  MediquoWidget.open();
+  // Mostra o botão de fechar
+  document.getElementById('mediquo-close-btn').style.display = 'block';
+  // Esconde o conteúdo atrás
+  document.getElementById('page-consultas').querySelector('.content-area').style.display = 'none';
+}, 500);
 
       status.textContent = 'Atendimento iniciado! O chat aparecerá na tela.';
       status.style.color = '#27ae60';
