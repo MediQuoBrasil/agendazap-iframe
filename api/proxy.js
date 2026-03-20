@@ -66,6 +66,11 @@ module.exports = async function handler(req, res) {
       'Origin': TARGET
     };
 
+    // Forward X-Requested-With (jQuery AJAX sends XMLHttpRequest)
+    if (req.headers['x-requested-with']) {
+      headers['X-Requested-With'] = req.headers['x-requested-with'];
+    }
+
     // Forward cookies if present
     if (req.headers['cookie']) {
       headers['Cookie'] = req.headers['cookie'];
@@ -97,10 +102,28 @@ module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With');
 
-    // Forward Set-Cookie headers
-    var setCookies = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
+    // Forward Set-Cookie headers with domain stripped
+    // agendazap sends domain=.agendazap.top which the browser rejects
+    // because current domain is agendazap-iframe.vercel.app
+    var rawHeaders = response.headers;
+    var setCookies = [];
+    if (rawHeaders.getSetCookie) {
+      setCookies = rawHeaders.getSetCookie();
+    } else if (rawHeaders.raw && rawHeaders.raw()['set-cookie']) {
+      setCookies = rawHeaders.raw()['set-cookie'];
+    }
     if (setCookies && setCookies.length > 0) {
-      res.setHeader('Set-Cookie', setCookies);
+      var rewrittenCookies = setCookies.map(function(cookie) {
+        // Remove domain=... attribute so cookie applies to proxy domain
+        cookie = cookie.replace(/;\s*domain=[^;]*/gi, '');
+        // Ensure path=/ so cookies are sent for all /api/proxy/ requests
+        cookie = cookie.replace(/;\s*path=[^;]*/gi, '; path=/');
+        // Remove SameSite=None which requires Secure in cross-origin contexts
+        // but our iframe is same-origin so Lax is fine
+        cookie = cookie.replace(/;\s*samesite=[^;]*/gi, '; SameSite=Lax');
+        return cookie;
+      });
+      res.setHeader('Set-Cookie', rewrittenCookies);
     }
 
     if (contentType.includes('text/html')) {
