@@ -218,56 +218,60 @@
     .content-area { padding: 20px; }
     .content-card { padding: 24px; }
   }
- /* MEDIQUO WIDGET - FORÇAR TAMANHO COMPLETO NA ÁREA DE CONTEÚDO */
-#mediquo-widget-container,
-#mediquo-widget,
-div[id*="mediquo"] {
-  position: fixed !important;
-  bottom: 0 !important;
-  right: 0 !important;
-  width: calc(100% - 260px) !important;
-  height: 100vh !important;
-  max-width: none !important;
-  max-height: none !important;
-  border-radius: 0 !important;
-  z-index: 999 !important;
-}
-/* Em mobile a sidebar fica em cima, widget ocupa tudo */
-@media (max-width: 768px) {
-  #mediquo-widget-container,
-  #mediquo-widget,
-  div[id*="mediquo"] {
-    width: 100% !important;
-    height: calc(100vh - 200px) !important;
+
+  /* MEDIQUO WIDGET - FORÇAR TAMANHO COMPLETO NA ÁREA DE CONTEÚDO */
+  /* Quando o widget está ativo, a classe .widget-active é adicionada ao body */
+  body.widget-active #mediquo-widget-container,
+  body.widget-active #mediquo-widget {
+    position: fixed !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    width: calc(100% - 260px) !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    z-index: 999 !important;
   }
-}
- /* BOTÃO FECHAR WIDGET MEDIQUO */
-#mediquo-close-btn {
-  display: none;
-  position: fixed;
-  top: 12px;
-  right: 16px;
-  z-index: 10000;
-  background: #022647;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 18px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-  transition: background 0.2s;
-}
-#mediquo-close-btn:hover { background: #c0392b; }
+  body.widget-active #mediquo-widget iframe {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  @media (max-width: 768px) {
+    body.widget-active #mediquo-widget-container,
+    body.widget-active #mediquo-widget {
+      width: 100% !important;
+      height: calc(100vh - 200px) !important;
+    }
+  }
+
+  /* BOTÃO FECHAR WIDGET MEDIQUO */
+  #widget-close-btn {
+    display: none;
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 10000;
+    background: #022647;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    transition: background 0.2s;
+  }
+  #widget-close-btn:hover { background: #c0392b; }
 </style>
- <script
+<script
   type="text/javascript"
   src="https://widget.mediquo.com/js/1.0.0/mediquo.js"
 ></script>
 </head>
 <body>
- <button id="mediquo-close-btn" onclick="fecharMediquo()">✕ Fechar Atendimento</button>
+<button id="widget-close-btn" onclick="fecharMediquo()">✕ Fechar Atendimento</button>
 
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
@@ -335,10 +339,8 @@ div[id*="mediquo"] {
         <h1>Pronto Atendimento Online de Clínico Geral – 24h<br><span style="font-size:18px;font-weight:400;color:#4a6a80">&amp;</span><br>Consultas agendadas (Dermatologia, Ginecologia, Nutrição, Psicologia, Treinadores)</h1>
         <p class="subtitle">Faça uma consulta com médico clínico geral agora, ou realize a sua consulta agendada. Médico clínico disponível 24h.</p>
         <p class="note">O uso deste serviço está incluso no seu plano sem custo.</p>
-        <button class="btn-primary" id="btn-iniciar-atendimento" onclick="iniciarAtendimentoMediquo()">
-  Iniciar Atendimento
-</button>
-<p id="atendimento-status" style="margin-top:12px; font-size:13px; color:#5a7b91; display:none;"></p>
+        <button class="btn-primary" id="btn-iniciar-atendimento" onclick="iniciarAtendimentoMediquo()">Iniciar Atendimento</button>
+        <p id="atendimento-status" style="margin-top:12px; font-size:13px; color:#5a7b91; display:none;"></p>
       </div>
     </div>
   </div>
@@ -365,7 +367,6 @@ div[id*="mediquo"] {
           </select>
         </div>
 
-        <!-- Card de confirmação que aparece ao selecionar -->
         <div id="especialidade-info" style="display:none; margin-bottom:24px; padding:18px 22px; background:#f0f7fb; border:1px solid #b8d8ea; border-radius:8px;">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
             <svg width="20" height="20" fill="none" stroke="#022647" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -388,7 +389,7 @@ div[id*="mediquo"] {
 
 <script>
 // URLs via Vercel Serverless Proxy (same-origin)
-const urls = {
+var urls = {
   dermatologia: '/api/proxy/p/mediquo?service=767',
   ginecologia: '/api/proxy/p/mediquo?service=1348',
   nutricao: 'https://docs.google.com/forms/d/e/1FAIpQLSdgvt0WPd61WQWfb1a-zLCzGyReFrRVeQVKDv06f147jaPlMQ/viewform?embedded=true',
@@ -396,7 +397,7 @@ const urls = {
   treinadores: 'https://docs.google.com/forms/d/e/1FAIpQLSdgvt0WPd61WQWfb1a-zLCzGyReFrRVeQVKDv06f147jaPlMQ/viewform?embedded=true'
 };
 
-const nomes = {
+var nomes = {
   dermatologia: 'Dermatologia',
   ginecologia: 'Ginecologia',
   nutricao: 'Nutrição',
@@ -404,52 +405,34 @@ const nomes = {
   treinadores: 'Treinadores'
 };
 
-// Especialidades que exigem anamnese (Google Form) antes do agendamento
-const anamnese = { nutricao: true, treinadores: true };
+var anamnese = { nutricao: true, treinadores: true };
 
 // Navigation
-document.querySelectorAll('.nav-item:not(.disabled)').forEach(item => {
-  item.addEventListener('click', () => {
-    const page = item.dataset.page;
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+document.querySelectorAll('.nav-item:not(.disabled)').forEach(function(item) {
+  item.addEventListener('click', function() {
+    var page = item.dataset.page;
+    document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
     item.classList.add('active');
-    document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
-    const target = document.getElementById('page-' + page);
+    document.querySelectorAll('.page-content').forEach(function(p) { p.style.display = 'none'; });
+    var target = document.getElementById('page-' + page);
     if (target) target.style.display = 'block';
-    // Reset iframe ao trocar de página
     if (page !== 'agendamento') {
       document.getElementById('iframe-wrapper').style.display = 'none';
       document.getElementById('agendamento-iframe').src = '';
     }
+    // Restaura content-area ao navegar
+    var ca = document.getElementById('page-consultas').querySelector('.content-area');
+    if (ca) ca.style.display = '';
   });
 });
-function fecharMediquo() {
-  MediquoWidget.destroy();
-  mediquoInitialized = false;
 
-  // Esconde o botão de fechar
-  document.getElementById('mediquo-close-btn').style.display = 'none';
-
-  // Restaura o conteúdo da página
-  var contentArea = document.getElementById('page-consultas').querySelector('.content-area');
-  if (contentArea) contentArea.style.display = '';
-
-  // Reseta o botão e status
-  var btn = document.getElementById('btn-iniciar-atendimento');
-  var status = document.getElementById('atendimento-status');
-  btn.textContent = 'Iniciar Atendimento';
-  btn.style.opacity = '1';
-  btn.style.pointerEvents = 'auto';
-  status.style.display = 'none';
-}
- 
 function atualizarSelecao() {
-  const esp = document.getElementById('especialidade').value;
-  const btn = document.getElementById('btn-agendar');
-  const info = document.getElementById('especialidade-info');
-  const infoText = document.getElementById('info-especialidade');
-  const infoDesc = document.getElementById('info-descricao');
-  const btnTexto = document.getElementById('btn-agendar-texto');
+  var esp = document.getElementById('especialidade').value;
+  var btn = document.getElementById('btn-agendar');
+  var info = document.getElementById('especialidade-info');
+  var infoText = document.getElementById('info-especialidade');
+  var infoDesc = document.getElementById('info-descricao');
+  var btnTexto = document.getElementById('btn-agendar-texto');
 
   if (esp) {
     btn.style.opacity = '1';
@@ -474,27 +457,43 @@ function atualizarSelecao() {
     info.style.display = 'none';
     btnTexto.textContent = 'Agendar consulta';
   }
-  // Esconde iframe anterior ao mudar seleção
   document.getElementById('iframe-wrapper').style.display = 'none';
   document.getElementById('agendamento-iframe').src = '';
 }
 
 function abrirAgendamento() {
-  const esp = document.getElementById('especialidade').value;
+  var esp = document.getElementById('especialidade').value;
   if (!esp) { alert('Por favor, selecione uma especialidade.'); return; }
-  const iframe = document.getElementById('agendamento-iframe');
-  const wrapper = document.getElementById('iframe-wrapper');
+  var iframe = document.getElementById('agendamento-iframe');
+  var wrapper = document.getElementById('iframe-wrapper');
   iframe.src = urls[esp];
-  // Google Forms precisa de mais altura
   iframe.style.height = anamnese[esp] ? '900px' : '700px';
   wrapper.style.display = 'block';
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
 // ============================
 // MEDIQUO WIDGET - ATENDIMENTO 24H
 // ============================
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0s1-gbIMh4oOiCaTs76VcOjjOzOwEwD12a_5-0rfSMfcl1byxMYKSu9-qh7XGoVIVZA/exec";
 var mediquoInitialized = false;
+
+function fecharMediquo() {
+  MediquoWidget.destroy();
+  mediquoInitialized = false;
+  document.body.classList.remove('widget-active');
+  document.getElementById('widget-close-btn').style.display = 'none';
+
+  var contentArea = document.getElementById('page-consultas').querySelector('.content-area');
+  if (contentArea) contentArea.style.display = '';
+
+  var btn = document.getElementById('btn-iniciar-atendimento');
+  var status = document.getElementById('atendimento-status');
+  btn.textContent = 'Iniciar Atendimento';
+  btn.style.opacity = '1';
+  btn.style.pointerEvents = 'auto';
+  status.style.display = 'none';
+}
 
 function iniciarAtendimentoMediquo() {
   var btn = document.getElementById('btn-iniciar-atendimento');
@@ -502,6 +501,9 @@ function iniciarAtendimentoMediquo() {
 
   if (mediquoInitialized) {
     MediquoWidget.open();
+    document.body.classList.add('widget-active');
+    document.getElementById('widget-close-btn').style.display = 'block';
+    document.getElementById('page-consultas').querySelector('.content-area').style.display = 'none';
     return;
   }
 
@@ -531,34 +533,33 @@ function iniciarAtendimentoMediquo() {
     }
 
     try {
-MediquoWidget.init({
-  apiKey: data.apiKey,
-  isMobileView: true,
-  theme: {
-    locale: "pt",
-    position: "right",
-    launcher: "hidden",
-    hideCloseButton: "true",
-    colors: {
-      primary: "#022647"
-    },
-    text: {
-      title: "MAG Seguros - Atendimento 24h"
-    }
-  }
-});
+      MediquoWidget.init({
+        apiKey: data.apiKey,
+        isMobileView: true,
+        theme: {
+          locale: "pt",
+          position: "right",
+          launcher: "hidden",
+          hideCloseButton: "true",
+          colors: {
+            primary: "#022647"
+          },
+          text: {
+            title: "MAG Seguros - Atendimento 24h"
+          }
+        }
+      });
 
       mediquoInitialized = true;
 
-setTimeout(function() {
-  MediquoWidget.open();
-  // Mostra o botão de fechar
-  document.getElementById('mediquo-close-btn').style.display = 'block';
-  // Esconde o conteúdo atrás
-  document.getElementById('page-consultas').querySelector('.content-area').style.display = 'none';
-}, 500);
+      setTimeout(function() {
+        MediquoWidget.open();
+        document.body.classList.add('widget-active');
+        document.getElementById('widget-close-btn').style.display = 'block';
+        document.getElementById('page-consultas').querySelector('.content-area').style.display = 'none';
+      }, 500);
 
-      status.textContent = 'Atendimento iniciado! O chat aparecerá na tela.';
+      status.textContent = 'Atendimento iniciado!';
       status.style.color = '#27ae60';
       btn.textContent = 'Abrir Atendimento';
       btn.style.opacity = '1';
