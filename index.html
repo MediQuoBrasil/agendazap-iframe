@@ -189,6 +189,59 @@
     border-color: #022647;
   }
 
+  /* TOOLTIP (?) */
+  .tooltip-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tooltip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #b0bec5;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: help;
+    flex-shrink: 0;
+  }
+  .tooltip-bubble {
+    display: none;
+    position: absolute;
+    left: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #333;
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.45;
+    width: 280px;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .tooltip-wrapper:hover .tooltip-bubble { display: block; }
+  @media (max-width: 768px) {
+    .tooltip-bubble {
+      left: auto;
+      right: 0;
+      top: 28px;
+      transform: none;
+      width: 240px;
+    }
+  }
+
+  .select-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
   /* IFRAME AGENDAMENTO */
   .iframe-container {
     margin-top: 28px;
@@ -385,6 +438,21 @@
           </select>
         </div>
 
+        <div class="form-group" id="grupo-beneficiario" style="display:none;">
+          <label>Agendamento para...</label>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <select id="beneficiario" onchange="atualizarSelecao()" style="flex:1; min-width:220px; max-width:480px;">
+              <option value="">Selecione quem irá realizar essa consulta...</option>
+              <option value="titular">Para mim, titular.</option>
+              <option value="dependente">Para meu filho(a) menor de 18 anos, dependente.</option>
+            </select>
+            <div class="tooltip-wrapper" id="tooltip-psicologia" style="display:none;">
+              <span class="tooltip-icon">?</span>
+              <div class="tooltip-bubble">Consultas de Psicologia não estão disponíveis para dependentes menores de 18 anos, seguindo as diretrizes éticas do Conselho Federal de Psicologia (CFP) para atendimento de crianças e adolescentes.</div>
+            </div>
+          </div>
+        </div>
+
         <div id="especialidade-info" style="display:none; margin-bottom:24px; padding:18px 22px; background:#f0f7fb; border:1px solid #b8d8ea; border-radius:8px;">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
             <svg width="20" height="20" fill="none" stroke="#022647" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -425,6 +493,16 @@ var nomes = {
 
 var anamnese = { nutricao: true, treinadores: true };
 
+// URLs para dependentes
+var urlsDep = {
+  dermatologia: '/api/proxy/p/mediquo?service=820',
+  ginecologia: '/api/proxy/p/mediquo?service=1349',
+  nutricao: 'https://docs.google.com/forms/d/e/1FAIpQLScizgq-KiU2m3cr-bH_GYCReTTkGn1qeT6MdMofl_PfNg4fdA/viewform?embedded=true',
+  treinadores: 'https://docs.google.com/forms/d/e/1FAIpQLScizgq-KiU2m3cr-bH_GYCReTTkGn1qeT6MdMofl_PfNg4fdA/viewform?embedded=true'
+};
+
+var anamneseDep = { nutricao: true, treinadores: true };
+
 // Navigation
 document.querySelectorAll('.nav-item:not(.disabled)').forEach(function(item) {
   item.addEventListener('click', function() {
@@ -452,19 +530,61 @@ document.querySelectorAll('.nav-item:not(.disabled)').forEach(function(item) {
 
 function atualizarSelecao() {
   var esp = document.getElementById('especialidade').value;
+  var benSelect = document.getElementById('beneficiario');
+  var ben = benSelect.value;
+  var grupoBen = document.getElementById('grupo-beneficiario');
+  var tooltipPsi = document.getElementById('tooltip-psicologia');
   var btn = document.getElementById('btn-agendar');
   var info = document.getElementById('especialidade-info');
   var infoText = document.getElementById('info-especialidade');
   var infoDesc = document.getElementById('info-descricao');
   var btnTexto = document.getElementById('btn-agendar-texto');
+  var depOption = benSelect.querySelector('option[value="dependente"]');
 
-  if (esp) {
+  // Reset iframe
+  document.getElementById('iframe-wrapper').style.display = 'none';
+  document.getElementById('agendamento-iframe').src = '';
+
+  if (!esp) {
+    grupoBen.style.display = 'none';
+    benSelect.value = '';
+    btn.style.opacity = '0.5';
+    btn.style.pointerEvents = 'none';
+    info.style.display = 'none';
+    btnTexto.textContent = 'Agendar consulta';
+    return;
+  }
+
+  // Mostra dropdown de beneficiário
+  grupoBen.style.display = 'block';
+
+  // Psicologia: desabilita opção de dependente
+  if (esp === 'psicologia') {
+    depOption.disabled = true;
+    depOption.style.color = '#aaa';
+    tooltipPsi.style.display = 'inline-flex';
+    // Se dependente estava selecionado, reseta
+    if (ben === 'dependente') {
+      benSelect.value = '';
+      ben = '';
+    }
+  } else {
+    depOption.disabled = false;
+    depOption.style.color = '';
+    tooltipPsi.style.display = 'none';
+  }
+
+  // Só habilita botão se ambos os campos estão preenchidos
+  if (esp && ben) {
+    var isDep = (ben === 'dependente');
+    var isAnamnese = isDep ? anamneseDep[esp] : anamnese[esp];
+
     btn.style.opacity = '1';
     btn.style.pointerEvents = 'auto';
-    infoText.textContent = nomes[esp];
+    infoText.textContent = nomes[esp] + (isDep ? ' — Dependente' : ' — Titular');
     info.style.display = 'block';
 
-    if (anamnese[esp]) {
+    if (isAnamnese) {
       infoDesc.textContent = 'Pré-requisito: preencha o formulário de anamnese antes de agendar sua consulta. Ao final, você receberá o link para agendamento.';
       btnTexto.textContent = 'Preencher anamnese';
       info.style.background = '#fef9ee';
@@ -481,17 +601,20 @@ function atualizarSelecao() {
     info.style.display = 'none';
     btnTexto.textContent = 'Agendar consulta';
   }
-  document.getElementById('iframe-wrapper').style.display = 'none';
-  document.getElementById('agendamento-iframe').src = '';
 }
 
 function abrirAgendamento() {
   var esp = document.getElementById('especialidade').value;
+  var ben = document.getElementById('beneficiario').value;
   if (!esp) { alert('Por favor, selecione uma especialidade.'); return; }
+  if (!ben) { alert('Por favor, selecione para quem é o agendamento.'); return; }
+  var isDep = (ben === 'dependente');
   var iframe = document.getElementById('agendamento-iframe');
   var wrapper = document.getElementById('iframe-wrapper');
-  iframe.src = urls[esp];
-  iframe.style.height = anamnese[esp] ? '900px' : '700px';
+  var url = isDep ? urlsDep[esp] : urls[esp];
+  var isAnamnese = isDep ? anamneseDep[esp] : anamnese[esp];
+  iframe.src = url;
+  iframe.style.height = isAnamnese ? '900px' : '700px';
   wrapper.style.display = 'block';
   wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
