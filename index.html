@@ -372,6 +372,10 @@
       <span class="nav-icon"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></span>
       Agendamento - Consulta online com especialista
     </li>
+    <li class="nav-item" data-page="meus-agendamentos">
+      <span class="nav-icon"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></span>
+      Consultar meus agendamentos
+    </li>
     <li class="nav-item disabled" data-page="dependentes">
       <span class="nav-icon"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg></span>
       Dependentes
@@ -467,6 +471,22 @@
 
         <div id="iframe-wrapper" class="iframe-container" style="display:none;">
           <iframe id="agendamento-iframe" src="" allow="camera; microphone"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE: Meus Agendamentos -->
+  <div id="page-meus-agendamentos" class="page-content" style="display:none;">
+    <div class="breadcrumb">
+      PAINEL <span>›</span> <span class="current">CONSULTAR MEUS AGENDAMENTOS</span>
+    </div>
+    <div class="content-area">
+      <div class="content-card" style="max-width:none;">
+        <h1>Consultar Meus Agendamentos</h1>
+        <p class="subtitle">Visualize e gerencie suas consultas agendadas.</p>
+        <div class="iframe-container" style="margin-top:20px;">
+          <iframe src="https://painel-agendazap.vercel.app/" style="width:100%; height:700px; border:none; display:block;" allow="camera; microphone"></iframe>
         </div>
       </div>
     </div>
