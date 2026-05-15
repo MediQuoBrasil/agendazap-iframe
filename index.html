@@ -640,12 +640,13 @@ function abrirAgendamento() {
 }
 
 // ============================
-// MEDIQUO WIDGET - ATENDIMENTO 24H
+// MEDIQUO WIDGET - ATENDIMENTO 24H (SESSÃO PERMANENTE)
 // ============================
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0s1-gbIMh4oOiCaTs76VcOjjOzOwEwD12a_5-0rfSMfcl1byxMYKSu9-qh7XGoVIVZA/exec";
 var mediquoInitialized = false;
-var mediquoSessionReady = false;
-var PROFESSIONAL_HASH = "0549bd07-d236-42a1-bc95-f0e7377d1ec1";
+var currentAccessToken = null;
+var currentProfessionalHash = null;
+var currentPatientCode = null;
 
 function fecharMediquo() {
   try { MediquoWidget.close(); } catch(e) { console.warn('close() erro:', e.message); }
@@ -664,33 +665,83 @@ function fecharMediquo() {
 }
 
 // === ESCUTA EVENTOS DO WIDGET ===
-// O evento "started" indica que o usuário completou o registro temporal
-// Só após esse evento o open_room() funciona corretamente
 window.addEventListener("message", function(event) {
   if (!event.data || typeof event.data !== 'object') return;
   var cmd = event.data.command || '';
 
-  // Quando o widget sinaliza que a sessão está pronta (usuário registrado)
+  // Com sessão permanente, o widget já abre autenticado
+  // O evento "started" confirma que está pronto
   if (cmd === 'started') {
-    console.log('[MediQuo] Sessão iniciada, abrindo sala do profissional...');
-    mediquoSessionReady = true;
-    // Pequeno delay para garantir que o widget processou o estado interno
-    setTimeout(function() {
-      try {
-        MediquoWidget.open_room(PROFESSIONAL_HASH);
-        console.log('[MediQuo] open_room() chamado com hash:', PROFESSIONAL_HASH);
-      } catch(e) {
-        console.warn('[MediQuo] open_room() erro:', e.message);
-      }
-    }, 500);
+    console.log('[MediQuo] Widget sessão permanente pronta');
+    // Abre a sala da profissional diretamente
+    if (currentProfessionalHash) {
+      setTimeout(function() {
+        try {
+          MediquoWidget.open_room(currentProfessionalHash);
+          console.log('[MediQuo] open_room() chamado com hash:', currentProfessionalHash);
+        } catch(e) {
+          console.warn('[MediQuo] open_room() erro:', e.message);
+        }
+      }, 500);
+    }
   }
 
-  // Se o profissional não está disponível, mostra a lista como fallback
+  // Se o profissional não está disponível, envia mensagem via API como fallback
   if (cmd === 'professionalIsUnavailable') {
     var detail = event.data.detail || {};
-    console.log('[MediQuo] Profissional indisponível:', detail.name, '- mostrando lista');
+    console.log('[MediQuo] Profissional indisponível:', detail.name);
+    console.log('[MediQuo] Enviando mensagem via API como fallback...');
+    enviarMensagemViaAPI();
   }
 });
+
+// Fallback: envia mensagem diretamente pela API do servidor
+function enviarMensagemViaAPI() {
+  if (!currentPatientCode) {
+    console.warn('[MediQuo] Sem patientCode para enviar mensagem');
+    return;
+  }
+
+  var status = document.getElementById('atendimento-status');
+  status.style.display = 'block';
+  status.style.color = '#5a7b91';
+  status.textContent = 'Conectando com a profissional...';
+
+  fetch(APPS_SCRIPT_URL, {
+    redirect: "follow",
+    method: "POST",
+    body: JSON.stringify({
+      origin: window.location.origin,
+      action: "sendMessage",
+      patientCode: currentPatientCode,
+      message: "Olá, gostaria de iniciar um atendimento pelo portal MAG Seguros."
+    }),
+    headers: { "Content-Type": "text/plain;charset=utf-8" }
+  })
+  .then(function(response) { return response.json(); })
+  .then(function(data) {
+    if (data.success) {
+      console.log('[MediQuo] Mensagem enviada com sucesso via API');
+      status.textContent = 'Mensagem enviada! A profissional responderá em breve.';
+      status.style.color = '#27ae60';
+      // Tenta abrir a sala novamente após envio da mensagem
+      setTimeout(function() {
+        try {
+          MediquoWidget.open_room(currentProfessionalHash);
+        } catch(e) {
+          console.warn('[MediQuo] open_room() após mensagem erro:', e.message);
+        }
+      }, 1000);
+    } else {
+      console.warn('[MediQuo] Falha ao enviar mensagem:', data.error);
+      status.textContent = 'A profissional será notificada. Aguarde na conversa.';
+      status.style.color = '#e67e22';
+    }
+  })
+  .catch(function(err) {
+    console.warn('[MediQuo] Erro ao enviar mensagem:', err.message);
+  });
+}
 
 function abrirWidget() {
   try {
@@ -699,11 +750,12 @@ function abrirWidget() {
     console.warn('[MediQuo] open() erro:', e.message);
   }
 
-  // Se a sessão já estava pronta (reabrir widget), tenta open_room direto
-  if (mediquoSessionReady) {
+  // Com sessão permanente, open_room pode ser chamado imediatamente
+  if (currentProfessionalHash) {
     setTimeout(function() {
       try {
-        MediquoWidget.open_room(PROFESSIONAL_HASH);
+        MediquoWidget.open_room(currentProfessionalHash);
+        console.log('[MediQuo] open_room() chamado na reabertura');
       } catch(e) {
         console.warn('[MediQuo] open_room() erro:', e.message);
       }
@@ -721,6 +773,7 @@ function iniciarAtendimentoMediquo() {
   var btn = document.getElementById('btn-iniciar-atendimento');
   var status = document.getElementById('atendimento-status');
 
+  // Se já inicializado, apenas reabre
   if (mediquoInitialized) {
     abrirWidget();
     return;
@@ -731,18 +784,24 @@ function iniciarAtendimentoMediquo() {
   btn.style.pointerEvents = 'none';
   status.style.display = 'block';
   status.style.color = '#5a7b91';
-  status.textContent = 'Conectando ao serviço de atendimento...';
+  status.textContent = 'Preparando sessão de atendimento...';
 
+  // PASSO 1: Chama o Apps Script para registrar paciente + autenticar
   fetch(APPS_SCRIPT_URL, {
     redirect: "follow",
     method: "POST",
-    body: JSON.stringify({ origin: window.location.origin }),
+    body: JSON.stringify({
+      origin: window.location.origin,
+      action: "initSession"
+    }),
     headers: { "Content-Type": "text/plain;charset=utf-8" }
   })
   .then(function(response) { return response.json(); })
   .then(function(data) {
-    if (data.error) {
-      status.textContent = 'Erro de autorização: ' + data.error;
+    console.log('[MediQuo] Resposta initSession:', JSON.stringify(data).substring(0, 300));
+
+    if (data.error && !data.accessToken) {
+      status.textContent = 'Erro: ' + data.error;
       status.style.color = '#c0392b';
       btn.textContent = 'Iniciar Atendimento';
       btn.style.opacity = '1';
@@ -750,9 +809,22 @@ function iniciarAtendimentoMediquo() {
       return;
     }
 
+    // Salva dados da sessão
+    currentAccessToken = data.accessToken;
+    currentProfessionalHash = data.professionalHash;
+    currentPatientCode = data.patientCode;
+
+    console.log('[MediQuo] accessToken recebido:', currentAccessToken ? 'SIM (' + currentAccessToken.substring(0, 20) + '...)' : 'NÃO');
+    console.log('[MediQuo] professionalHash:', currentProfessionalHash);
+    console.log('[MediQuo] patientCode:', currentPatientCode);
+
+    status.textContent = 'Iniciando widget com sessão autenticada...';
+
     try {
-      MediquoWidget.init({
+      // PASSO 2: Inicializa o widget COM accessToken (sessão permanente)
+      var initConfig = {
         apiKey: data.apiKey,
+        accessToken: currentAccessToken,  // <-- SESSÃO PERMANENTE
         isMobileView: true,
         theme: {
           locale: "pt",
@@ -766,13 +838,20 @@ function iniciarAtendimentoMediquo() {
             title: "MAG Seguros - Atendimento 24h"
           }
         }
-      });
+      };
+
+      console.log('[MediQuo] Chamando MediquoWidget.init() com accessToken (sessão permanente)');
+      MediquoWidget.init(initConfig);
 
       mediquoInitialized = true;
 
-      // Aguarda SDK carregar antes de abrir
+      // PASSO 3: Aguarda SDK carregar e abre o widget + sala
       setTimeout(function() {
         abrirWidget();
+
+        // PASSO 4: Envia mensagem de boas-vindas via API para criar a conversa
+        // Isso garante que a conversa aparece mesmo se open_room falhar
+        enviarMensagemViaAPI();
       }, 2000);
 
       status.textContent = 'Atendimento iniciado!';
@@ -782,6 +861,7 @@ function iniciarAtendimentoMediquo() {
       btn.style.pointerEvents = 'auto';
 
     } catch (err) {
+      console.error('[MediQuo] Erro ao iniciar widget:', err);
       status.textContent = 'Erro ao iniciar o widget. Recarregue a página.';
       status.style.color = '#c0392b';
       btn.textContent = 'Iniciar Atendimento';
@@ -790,6 +870,7 @@ function iniciarAtendimentoMediquo() {
     }
   })
   .catch(function(err) {
+    console.error('[MediQuo] Erro de conexão:', err);
     status.textContent = 'Erro de conexão com o servidor. Tente novamente.';
     status.style.color = '#c0392b';
     btn.textContent = 'Iniciar Atendimento';
