@@ -641,16 +641,18 @@ function abrirAgendamento() {
 
 // ============================
 // MEDIQUO WIDGET - ATENDIMENTO 24H (SESSÃO PERMANENTE)
-// ESTRATÉGIA: "SHOTGUN" - múltiplas abordagens simultâneas com logs detalhados
+// ESTRATÉGIA v3: postMessage direto para container + navigate + room ID
 // ============================
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0s1-gbIMh4oOiCaTs76VcOjjOzOwEwD12a_5-0rfSMfcl1byxMYKSu9-qh7XGoVIVZA/exec";
 var mediquoInitialized = false;
 var currentAccessToken = null;
 var currentProfessionalHash = null;
 var currentPatientCode = null;
+var currentRoomId = null;
 var widgetSessionReady = false;
 var openRoomAttempts = 0;
 var openRoomTimer = null;
+var roomOpened = false;
 var allServerLogs = [];
 
 // === LOG CENTRALIZADO ===
@@ -680,31 +682,106 @@ function fecharMediquo() {
   document.getElementById('atendimento-status').style.display = 'none';
 }
 
-// === ESTRATÉGIA PRINCIPAL: Tentativas repetidas de open_room ===
-// O widget pode levar tempo para processar a sessão internamente
-// Vamos tentar open_room repetidamente com intervalos crescentes
+// === ESTRATÉGIA v3: Múltiplas abordagens para abrir sala ===
 function tentarAbrirSala() {
   if (!currentProfessionalHash) {
     mlog('❌ Sem professionalHash, não é possível abrir sala');
     return;
   }
-
-  openRoomAttempts++;
-  mlog('🔄 Tentativa #' + openRoomAttempts + ' de open_room com hash: ' + currentProfessionalHash);
-
-  try {
-    // Estratégia A: open_room direto com hash
-    var result = MediquoWidget.open_room(currentProfessionalHash);
-    mlog('   open_room() retornou:', result);
-  } catch (e) {
-    mlog('   open_room() erro:', e.message);
+  if (roomOpened) {
+    mlog('✅ Sala já aberta, ignorando tentativa.');
+    if (openRoomTimer) { clearInterval(openRoomTimer); openRoomTimer = null; }
+    return;
   }
 
-  // Se já tentou muitas vezes, para de tentar
-  if (openRoomAttempts >= 15) {
-    mlog('⚠️ Máximo de tentativas atingido (15). Parando auto-retry.');
+  openRoomAttempts++;
+  var container = document.getElementById('MediquoContainer');
+  var launcher = document.getElementById('MediquoLauncher');
+
+  mlog('🔄 Tentativa #' + openRoomAttempts + ' — estratégia combinada');
+
+  // --- ESTRATÉGIA A: open_room via SDK (envia para launcher) ---
+  try {
+    mlog('   [A] open_room(hash) via SDK: ' + currentProfessionalHash);
+    MediquoWidget.open_room(currentProfessionalHash);
+  } catch (e) {
+    mlog('   [A] open_room(hash) erro:', e.message);
+  }
+
+  // --- ESTRATÉGIA B: navigate via SDK para /professionals/{hash}/room ---
+  try {
+    var roomPath = '/professionals/' + currentProfessionalHash + '/room';
+    mlog('   [B] navigate("' + roomPath + '") via SDK');
+    MediquoWidget.navigate(roomPath);
+  } catch (e) {
+    mlog('   [B] navigate() erro:', e.message);
+  }
+
+  // --- ESTRATÉGIA C: postMessage direto para CONTAINER com navigate ---
+  if (container && container.contentWindow) {
+    try {
+      var navPath = '/professionals/' + currentProfessionalHash + '/room';
+      mlog('   [C] postMessage direto→container: navigate path=' + navPath);
+      container.contentWindow.postMessage({
+        command: 'navigate',
+        payload: { path: navPath }
+      }, '*');
+    } catch (e) {
+      mlog('   [C] postMessage navigate erro:', e.message);
+    }
+  }
+
+  // --- ESTRATÉGIA D: postMessage direto para CONTAINER com open_room ---
+  if (container && container.contentWindow) {
+    try {
+      mlog('   [D] postMessage direto→container: open_room hash=' + currentProfessionalHash);
+      container.contentWindow.postMessage({
+        command: 'open_room',
+        payload: { professional_hash: currentProfessionalHash }
+      }, '*');
+    } catch (e) {
+      mlog('   [D] postMessage open_room→container erro:', e.message);
+    }
+  }
+
+  // --- ESTRATÉGIA E: open_room com room ID numérico ---
+  if (currentRoomId) {
+    try {
+      mlog('   [E] open_room(roomId) via SDK: ' + currentRoomId);
+      MediquoWidget.open_room(currentRoomId);
+    } catch (e) {
+      mlog('   [E] open_room(roomId) erro:', e.message);
+    }
+
+    // Também tenta navigate com room ID
+    if (container && container.contentWindow) {
+      try {
+        var roomIdPath = '/rooms/' + currentRoomId;
+        mlog('   [F] postMessage direto→container: navigate path=' + roomIdPath);
+        container.contentWindow.postMessage({
+          command: 'navigate',
+          payload: { path: roomIdPath }
+        }, '*');
+      } catch (e) {
+        mlog('   [F] postMessage navigate rooms erro:', e.message);
+      }
+    }
+  }
+
+  // --- ESTRATÉGIA G: open_room com room ID como string ---
+  if (currentRoomId) {
+    try {
+      mlog('   [G] open_room(roomId string) via SDK: "' + String(currentRoomId) + '"');
+      MediquoWidget.open_room(String(currentRoomId));
+    } catch (e) {
+      mlog('   [G] open_room(roomId string) erro:', e.message);
+    }
+  }
+
+  if (openRoomAttempts >= 10) {
+    mlog('⚠️ Máximo de tentativas atingido (10). Parando.');
     mlog('📋 Resumo: O widget está aberto mas pode estar mostrando a lista de profissionais.');
-    mlog('📋 Isso pode significar que open_room precisa de algum estado interno do widget que não está disponível.');
+    mlog('📋 hash=' + currentProfessionalHash + ', roomId=' + currentRoomId);
     if (openRoomTimer) { clearInterval(openRoomTimer); openRoomTimer = null; }
   }
 }
@@ -713,7 +790,7 @@ function tentarAbrirSala() {
 window.addEventListener("message", function(event) {
   if (!event.data || typeof event.data !== 'object') return;
   var cmd = event.data.command || '';
-  var detail = event.data.detail || {};
+  var detail = event.data.detail || event.data.payload || {};
 
   // Loga TODOS os eventos para diagnóstico
   if (cmd) {
@@ -725,32 +802,31 @@ window.addEventListener("message", function(event) {
     mlog('✅ Widget sessão pronta (started event)');
     widgetSessionReady = true;
 
-    // Inicia tentativas de open_room com intervalo
-    // Começa rápido (500ms) e vai diminuindo
+    // Inicia tentativas com delay para garantir que o widget carregou internamente
     openRoomAttempts = 0;
+    roomOpened = false;
     if (openRoomTimer) clearInterval(openRoomTimer);
 
-    // Tentativa imediata
+    // Primeira tentativa após 500ms
     setTimeout(function() {
       tentarAbrirSala();
-    }, 300);
+    }, 500);
 
-    // Tentativas subsequentes a cada 2s por 30s
+    // Tentativas subsequentes a cada 2.5s
     openRoomTimer = setInterval(function() {
       tentarAbrirSala();
-      if (openRoomAttempts >= 15) {
+      if (openRoomAttempts >= 10 || roomOpened) {
         clearInterval(openRoomTimer);
         openRoomTimer = null;
       }
-    }, 2000);
+    }, 2500);
   }
 
   // Evento de profissional indisponível
   if (cmd === 'professionalIsUnavailable') {
     mlog('🔒 Profissional indisponível: ' + detail.name);
-    mlog('   Isso significa que open_room FUNCIONOU (chegou até o profissional)');
-    mlog('   mas o profissional está offline no momento.');
-    // Paramos as tentativas pois sabemos que o hash está correto
+    mlog('   open_room FUNCIONOU — chegou até o profissional, mas está offline.');
+    roomOpened = true; // Consideramos sucesso (a sala existe)
     if (openRoomTimer) { clearInterval(openRoomTimer); openRoomTimer = null; }
 
     var status = document.getElementById('atendimento-status');
@@ -759,19 +835,20 @@ window.addEventListener("message", function(event) {
     status.textContent = 'A profissional está temporariamente indisponível. Sua mensagem foi enviada e ela responderá em breve.';
   }
 
-  // Evento de mensagem (pode indicar que a sala abriu)
+  // Evento de mensagem com profissional = sala aberta!
   if (cmd === 'message') {
     if (detail && detail.professional) {
       mlog('💬 Mensagem com profissional:', detail.professional);
-      // Se chegou uma mensagem com profissional, a sala está aberta!
+      roomOpened = true;
       if (openRoomTimer) { clearInterval(openRoomTimer); openRoomTimer = null; }
       mlog('✅ Sala do profissional ABERTA com sucesso!');
     }
   }
 
-  // Evento de room opened (se existir)
+  // Evento de room opened
   if (cmd === 'roomOpened' || cmd === 'room_opened' || cmd === 'openRoom') {
     mlog('✅ Evento de sala aberta detectado!', detail);
+    roomOpened = true;
     if (openRoomTimer) { clearInterval(openRoomTimer); openRoomTimer = null; }
   }
 });
@@ -785,13 +862,13 @@ function abrirWidget() {
     mlog('   open() erro:', e.message);
   }
 
-  // Se sessão já estava pronta (reabertura), tenta open_room
-  if (widgetSessionReady && currentProfessionalHash) {
-    mlog('   Sessão já pronta, tentando open_room na reabertura...');
+  // Se sessão já estava pronta, tenta abrir sala novamente
+  if (widgetSessionReady && currentProfessionalHash && !roomOpened) {
+    mlog('   Sessão já pronta, tentando abrir sala...');
     openRoomAttempts = 0;
     setTimeout(function() { tentarAbrirSala(); }, 500);
-    setTimeout(function() { tentarAbrirSala(); }, 1500);
-    setTimeout(function() { tentarAbrirSala(); }, 3000);
+    setTimeout(function() { tentarAbrirSala(); }, 2000);
+    setTimeout(function() { tentarAbrirSala(); }, 4000);
   }
 
   document.body.classList.add('widget-open');
@@ -842,16 +919,14 @@ function iniciarAtendimentoMediquo() {
       data.logs.forEach(function(l) { mlog('   SERVER: ' + l); });
     }
 
-    // Info da profissional retornada pelo servidor
     if (data.professionalInfo) {
       mlog('👩‍⚕️ Profissional encontrada:', data.professionalInfo);
     } else {
       mlog('⚠️ Profissional NÃO encontrada na lista de consultants');
     }
 
-    // Resultado do envio de mensagem
     if (data.messageResult) {
-      mlog('💬 Mensagem enviada pelo servidor:', data.messageResult);
+      mlog('💬 Resultado mensagem:', data.messageResult);
     }
 
     if (data.error && !data.accessToken) {
@@ -867,10 +942,12 @@ function iniciarAtendimentoMediquo() {
     currentAccessToken = data.accessToken;
     currentProfessionalHash = data.professionalHash;
     currentPatientCode = data.patientCode;
+    currentRoomId = data.roomId || null; // Room ID do servidor
 
     mlog('🔑 accessToken: ' + (currentAccessToken ? 'SIM (' + currentAccessToken.substring(0, 20) + '...)' : 'NÃO'));
     mlog('🆔 professionalHash: ' + currentProfessionalHash);
     mlog('👤 patientCode: ' + currentPatientCode);
+    mlog('🏠 roomId: ' + (currentRoomId || 'N/A'));
 
     status.textContent = 'Iniciando widget com sessão autenticada...';
 
@@ -907,16 +984,12 @@ function iniciarAtendimentoMediquo() {
       mlog('✅ MediquoWidget.init() executado');
 
       // PASSO 3: Aguarda SDK carregar e abre
-      // Usa múltiplos timings para "atirar em todos os lados"
-      var timings = [1000, 2000, 3000, 5000];
-      timings.forEach(function(delay) {
-        setTimeout(function() {
-          if (!document.body.classList.contains('widget-open')) {
-            mlog('   Abrindo widget após ' + delay + 'ms...');
-            abrirWidget();
-          }
-        }, delay);
-      });
+      setTimeout(function() {
+        if (!document.body.classList.contains('widget-open')) {
+          mlog('   Abrindo widget após 1000ms...');
+          abrirWidget();
+        }
+      }, 1000);
 
       status.textContent = 'Atendimento iniciado!';
       status.style.color = '#27ae60';
