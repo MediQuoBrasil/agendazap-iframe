@@ -672,6 +672,8 @@ function fecharMediquo() {
 
 function abrirWidget() {
   MediquoWidget.open();
+  // Abre direto a sala do profissional específico (Clínico Geral 24h)
+  setTimeout(function() { MediquoWidget.open_room("17563"); }, 300);
 
   // Adiciona classe ao body - CSS reposiciona #MediquoContainer
   document.body.classList.add('widget-open');
