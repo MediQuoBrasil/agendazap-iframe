@@ -670,10 +670,38 @@ function fecharMediquo() {
   status.style.display = 'none';
 }
 
+var PROFESSIONAL_ID = "17563";
+var openRoomAttempted = false;
+
+// Escuta mensagens do widget para detectar quando profissionais estão disponíveis
+window.addEventListener("message", function(event) {
+  if (!event.data || !event.data.command) return;
+  var cmd = event.data.command;
+  // Quando o widget envia evento de consultas ou profissional disponível,
+  // tenta abrir a sala se ainda não tentou com sucesso
+  if ((cmd === "consultations" || cmd === "professionalIsUnavailable") && !openRoomAttempted) {
+    openRoomAttempted = true;
+    try { MediquoWidget.open_room(PROFESSIONAL_ID); } catch(e) {}
+  }
+});
+
+function tentarAbrirSala() {
+  // Tenta abrir a sala do profissional com retries progressivos
+  // O widget precisa de tempo para carregar internamente após open()
+  var delays = [500, 1500, 3000, 5000];
+  delays.forEach(function(delay) {
+    setTimeout(function() {
+      try { MediquoWidget.open_room(PROFESSIONAL_ID); } catch(e) {}
+    }, delay);
+  });
+}
+
 function abrirWidget() {
   MediquoWidget.open();
-  // Abre direto a sala do profissional específico (Clínico Geral 24h)
-  setTimeout(function() { MediquoWidget.open_room("17563"); }, 300);
+
+  // Tenta abrir a sala do profissional específico (Clínico Geral 24h)
+  // Múltiplas tentativas porque o widget precisa carregar internamente
+  tentarAbrirSala();
 
   // Adiciona classe ao body - CSS reposiciona #MediquoContainer
   document.body.classList.add('widget-open');
@@ -741,11 +769,13 @@ function iniciarAtendimentoMediquo() {
       });
 
       mediquoInitialized = true;
+      openRoomAttempted = false;
 
       // Aguarda o SDK injetar os iframes e depois abre
+      // Timeout maior na primeira vez - o SDK precisa carregar o iframe interno
       setTimeout(function() {
         abrirWidget();
-      }, 600);
+      }, 1200);
 
       status.textContent = 'Atendimento iniciado!';
       status.style.color = '#27ae60';
