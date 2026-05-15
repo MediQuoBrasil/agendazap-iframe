@@ -416,15 +416,6 @@
         <p class="note">O uso deste serviço está incluso no seu plano sem custo.</p>
         <button class="btn-primary" id="btn-iniciar-atendimento" onclick="iniciarAtendimentoMediquo()">Iniciar Atendimento</button>
         <p id="atendimento-status" style="margin-top:12px; font-size:13px; color:#5a7b91; display:none;"></p>
-        <!-- DEBUG PANEL - remover após resolver -->
-        <div id="debug-panel" style="display:none; margin-top:20px; padding:16px; background:#1a1a2e; border-radius:8px; border:1px solid #444;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <span style="color:#00d4ff; font-weight:700; font-size:13px;">🔧 Debug Log - MediQuo Widget</span>
-            <button onclick="document.getElementById('debug-log').textContent=''; debugLogs=[];" style="background:#333; color:#aaa; border:1px solid #555; border-radius:4px; padding:3px 10px; font-size:11px; cursor:pointer;">Limpar</button>
-          </div>
-          <pre id="debug-log" style="background:#0d0d1a; color:#00ff88; font-family:'Courier New',monospace; font-size:11px; line-height:1.5; padding:12px; border-radius:4px; max-height:400px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; margin:0;"></pre>
-          <p style="color:#777; font-size:10px; margin-top:6px; margin-bottom:0;">Abra o Console (F12) para logs detalhados. Os 3 IDs serão testados automaticamente em sequência.</p>
-        </div>
       </div>
     </div>
   </div>
@@ -651,36 +642,13 @@ function abrirAgendamento() {
 // ============================
 // MEDIQUO WIDGET - ATENDIMENTO 24H
 // ============================
-// DEBUG MODE: Testa 3 possíveis IDs para open_room
-// ============================
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0s1-gbIMh4oOiCaTs76VcOjjOzOwEwD12a_5-0rfSMfcl1byxMYKSu9-qh7XGoVIVZA/exec";
 var mediquoInitialized = false;
-
-// === 3 POSSÍVEIS IDENTIFICADORES DO PROFISSIONAL ===
-var PROF_ID_NUMERIC = "17563";
-var PROF_ID_CODE    = "progo7hz86q";
-var PROF_ID_HASH    = "0549bd07-d236-42a1-bc95-f0e7377d1ec1";
-
-// Qual ID usar (será atualizado pelo debug ou pela API)
-var PROFESSIONAL_IDS = [PROF_ID_HASH, PROF_ID_CODE, PROF_ID_NUMERIC];
-var currentIdIndex = 0;
-
-// === DEBUG LOG - aparece no console e numa div na página ===
-var debugLogs = [];
-function dbg(msg) {
-  var ts = new Date().toISOString().substr(11, 12);
-  var entry = '[' + ts + '] ' + msg;
-  console.log('%c[MediQuo Debug] ' + msg, 'color: #0066cc; font-weight: bold;');
-  debugLogs.push(entry);
-  var el = document.getElementById('debug-log');
-  if (el) {
-    el.textContent = debugLogs.join('\n');
-    el.scrollTop = el.scrollHeight;
-  }
-}
+var mediquoSessionReady = false;
+var PROFESSIONAL_HASH = "0549bd07-d236-42a1-bc95-f0e7377d1ec1";
 
 function fecharMediquo() {
-  try { MediquoWidget.close(); } catch(e) { dbg('close() erro: ' + e.message); }
+  try { MediquoWidget.close(); } catch(e) { console.warn('close() erro:', e.message); }
   document.body.classList.remove('widget-open');
   document.getElementById('widget-close-btn').style.display = 'none';
   var contentArea = document.getElementById('page-consultas').querySelector('.content-area');
@@ -695,155 +663,52 @@ function fecharMediquo() {
   status.style.display = 'none';
 }
 
-// === ESCUTA TODAS AS MENSAGENS DO WIDGET (para debug) ===
+// === ESCUTA EVENTOS DO WIDGET ===
+// O evento "started" indica que o usuário completou o registro temporal
+// Só após esse evento o open_room() funciona corretamente
 window.addEventListener("message", function(event) {
-  // Loga TODAS as mensagens PostMessage do widget para entender o protocolo
-  if (event.data && typeof event.data === 'object') {
-    var cmd = event.data.command || event.data.type || event.data.action || 'unknown';
-    var detail = event.data.detail || event.data.data || event.data.payload || null;
-    dbg('PostMessage recebida: command=' + cmd + (detail ? ' detail=' + JSON.stringify(detail).substring(0, 200) : ''));
+  if (!event.data || typeof event.data !== 'object') return;
+  var cmd = event.data.command || '';
 
-    // Se recebeu evento de profissional indisponível, loga os detalhes
-    if (cmd === 'professionalIsUnavailable' && detail) {
-      dbg('PROFISSIONAL INDISPONÍVEL: name=' + (detail.name || '?') + 
-          ', status=' + (detail.status || '?') + 
-          ', is_available=' + (detail.is_available || '?') +
-          ', hash=' + (detail.hash || 'N/A') +
-          ', id=' + (detail.id || 'N/A'));
-    }
+  // Quando o widget sinaliza que a sessão está pronta (usuário registrado)
+  if (cmd === 'started') {
+    console.log('[MediQuo] Sessão iniciada, abrindo sala do profissional...');
+    mediquoSessionReady = true;
+    // Pequeno delay para garantir que o widget processou o estado interno
+    setTimeout(function() {
+      try {
+        MediquoWidget.open_room(PROFESSIONAL_HASH);
+        console.log('[MediQuo] open_room() chamado com hash:', PROFESSIONAL_HASH);
+      } catch(e) {
+        console.warn('[MediQuo] open_room() erro:', e.message);
+      }
+    }, 500);
+  }
 
-    // Se recebeu consultations, loga
-    if (cmd === 'consultations') {
-      dbg('CONSULTATIONS evento: pendingConsultations=' + (detail ? detail.pendingConsultations : JSON.stringify(event.data)));
-    }
-  } else if (event.data && typeof event.data === 'string') {
-    // Algumas mensagens podem vir como string
-    if (event.data.length < 500) {
-      dbg('PostMessage (string): ' + event.data);
-    }
+  // Se o profissional não está disponível, mostra a lista como fallback
+  if (cmd === 'professionalIsUnavailable') {
+    var detail = event.data.detail || {};
+    console.log('[MediQuo] Profissional indisponível:', detail.name, '- mostrando lista');
   }
 });
 
-// === TENTA ABRIR SALA COM OS 3 IDs SEQUENCIALMENTE ===
-function tentarAbrirSala() {
-  dbg('=== INICIANDO TESTE DOS 3 IDs ===');
-  
-  // Teste 1: Hash UUID (mais provável para MediQuo)
-  setTimeout(function() {
-    dbg('Tentativa 1/3: open_room("' + PROF_ID_HASH + '") [Hash UUID]');
-    try {
-      var result = MediquoWidget.open_room(PROF_ID_HASH);
-      dbg('Tentativa 1 retornou: ' + JSON.stringify(result));
-    } catch(e) {
-      dbg('Tentativa 1 ERRO: ' + e.message);
-    }
-  }, 1500);
-
-  // Teste 2: Código interno
-  setTimeout(function() {
-    dbg('Tentativa 2/3: open_room("' + PROF_ID_CODE + '") [Código interno]');
-    try {
-      var result = MediquoWidget.open_room(PROF_ID_CODE);
-      dbg('Tentativa 2 retornou: ' + JSON.stringify(result));
-    } catch(e) {
-      dbg('Tentativa 2 ERRO: ' + e.message);
-    }
-  }, 4000);
-
-  // Teste 3: ID numérico
-  setTimeout(function() {
-    dbg('Tentativa 3/3: open_room("' + PROF_ID_NUMERIC + '") [ID numérico]');
-    try {
-      var result = MediquoWidget.open_room(PROF_ID_NUMERIC);
-      dbg('Tentativa 3 retornou: ' + JSON.stringify(result));
-    } catch(e) {
-      dbg('Tentativa 3 ERRO: ' + e.message);
-    }
-  }, 6500);
-
-  // Teste extra: open_list() como fallback para verificar se o widget está funcional
-  setTimeout(function() {
-    dbg('Teste extra: open_list() para verificar se o widget responde');
-    try {
-      var result = MediquoWidget.open_list();
-      dbg('open_list() retornou: ' + JSON.stringify(result));
-    } catch(e) {
-      dbg('open_list() ERRO: ' + e.message);
-    }
-  }, 9000);
-
-  // Verificar se o widget injected iframes
-  setTimeout(function() {
-    var container = document.getElementById('MediquoContainer');
-    var launcher = document.getElementById('MediquoLauncher');
-    dbg('DOM Check: MediquoContainer exists=' + !!container + 
-        ', MediquoLauncher exists=' + !!launcher);
-    if (container) {
-      dbg('MediquoContainer: display=' + getComputedStyle(container).display + 
-          ', visibility=' + getComputedStyle(container).visibility +
-          ', opacity=' + getComputedStyle(container).opacity +
-          ', dimensions=' + container.offsetWidth + 'x' + container.offsetHeight);
-      // Verifica iframes internos
-      var iframes = container.querySelectorAll('iframe');
-      dbg('MediquoContainer tem ' + iframes.length + ' iframe(s)');
-      for (var i = 0; i < iframes.length; i++) {
-        dbg('  iframe[' + i + ']: src=' + (iframes[i].src || 'vazio').substring(0, 100));
-      }
-    }
-  }, 2000);
-}
-
-// === BUSCA CONSULTANTS VIA APPS SCRIPT (backend) ===
-function buscarConsultantsViaBackend() {
-  dbg('Buscando lista de consultants via Apps Script...');
-  fetch(APPS_SCRIPT_URL, {
-    redirect: "follow",
-    method: "POST",
-    body: JSON.stringify({ origin: window.location.origin, action: "listConsultants" }),
-    headers: { "Content-Type": "text/plain;charset=utf-8" }
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    if (data.consultants) {
-      dbg('=== CONSULTANTS DA API MEDIQUO ===');
-      var list = data.consultants;
-      if (typeof list === 'string') {
-        try { list = JSON.parse(list); } catch(e) { dbg('Erro ao parsear consultants: ' + e.message); }
-      }
-      if (Array.isArray(list)) {
-        dbg('Total de profissionais: ' + list.length);
-        list.forEach(function(prof, idx) {
-          dbg('  [' + idx + '] hash=' + (prof.hash || 'N/A') + 
-              ' | name=' + (prof.name || '?') + 
-              ' | title=' + (prof.title || '?') + 
-              ' | speciality_id=' + (prof.speciality_id || '?') +
-              ' | status=' + (prof.status || '?'));
-        });
-      } else {
-        dbg('Resposta consultants (não-array): ' + JSON.stringify(list).substring(0, 500));
-      }
-    } else if (data.consultantsError) {
-      dbg('Erro ao buscar consultants: ' + data.consultantsError);
-    } else {
-      dbg('Resposta do Apps Script: ' + JSON.stringify(data).substring(0, 500));
-    }
-  })
-  .catch(function(err) {
-    dbg('Erro de rede ao buscar consultants: ' + err.message);
-  });
-}
-
 function abrirWidget() {
-  dbg('abrirWidget() chamado');
   try {
     MediquoWidget.open();
-    dbg('MediquoWidget.open() executado com sucesso');
   } catch(e) {
-    dbg('MediquoWidget.open() ERRO: ' + e.message);
+    console.warn('[MediQuo] open() erro:', e.message);
   }
 
-  // Testa os 3 IDs
-  tentarAbrirSala();
+  // Se a sessão já estava pronta (reabrir widget), tenta open_room direto
+  if (mediquoSessionReady) {
+    setTimeout(function() {
+      try {
+        MediquoWidget.open_room(PROFESSIONAL_HASH);
+      } catch(e) {
+        console.warn('[MediQuo] open_room() erro:', e.message);
+      }
+    }, 500);
+  }
 
   document.body.classList.add('widget-open');
   document.getElementById('widget-close-btn').style.display = 'block';
@@ -855,13 +720,8 @@ function abrirWidget() {
 function iniciarAtendimentoMediquo() {
   var btn = document.getElementById('btn-iniciar-atendimento');
   var status = document.getElementById('atendimento-status');
-  
-  // Mostra painel de debug
-  var debugPanel = document.getElementById('debug-panel');
-  if (debugPanel) debugPanel.style.display = 'block';
 
   if (mediquoInitialized) {
-    dbg('Widget já inicializado, reabrindo...');
     abrirWidget();
     return;
   }
@@ -873,23 +733,15 @@ function iniciarAtendimentoMediquo() {
   status.style.color = '#5a7b91';
   status.textContent = 'Conectando ao serviço de atendimento...';
 
-  dbg('Buscando apiKey do Apps Script...');
-
   fetch(APPS_SCRIPT_URL, {
     redirect: "follow",
     method: "POST",
     body: JSON.stringify({ origin: window.location.origin }),
     headers: { "Content-Type": "text/plain;charset=utf-8" }
   })
-  .then(function(response) {
-    dbg('Apps Script respondeu: status=' + response.status);
-    return response.json();
-  })
+  .then(function(response) { return response.json(); })
   .then(function(data) {
-    dbg('Apps Script data: ' + JSON.stringify(data).substring(0, 200));
-
     if (data.error) {
-      dbg('ERRO de autorização: ' + data.error);
       status.textContent = 'Erro de autorização: ' + data.error;
       status.style.color = '#c0392b';
       btn.textContent = 'Iniciar Atendimento';
@@ -899,8 +751,6 @@ function iniciarAtendimentoMediquo() {
     }
 
     try {
-      dbg('Inicializando MediquoWidget.init() com apiKey=' + data.apiKey.substring(0, 4) + '...');
-      
       MediquoWidget.init({
         apiKey: data.apiKey,
         isMobileView: true,
@@ -918,27 +768,20 @@ function iniciarAtendimentoMediquo() {
         }
       });
 
-      dbg('MediquoWidget.init() executado com sucesso');
       mediquoInitialized = true;
 
-      // Busca consultants via backend para descobrir o hash correto
-      buscarConsultantsViaBackend();
-
       // Aguarda SDK carregar antes de abrir
-      dbg('Aguardando 2s para SDK carregar iframes internos...');
       setTimeout(function() {
-        dbg('Timeout expirado, abrindo widget...');
         abrirWidget();
       }, 2000);
 
-      status.textContent = 'Atendimento iniciado! (Debug ativo - veja console F12)';
+      status.textContent = 'Atendimento iniciado!';
       status.style.color = '#27ae60';
       btn.textContent = 'Abrir Atendimento';
       btn.style.opacity = '1';
       btn.style.pointerEvents = 'auto';
 
     } catch (err) {
-      dbg('ERRO no init(): ' + err.message + '\nStack: ' + err.stack);
       status.textContent = 'Erro ao iniciar o widget. Recarregue a página.';
       status.style.color = '#c0392b';
       btn.textContent = 'Iniciar Atendimento';
@@ -947,7 +790,6 @@ function iniciarAtendimentoMediquo() {
     }
   })
   .catch(function(err) {
-    dbg('ERRO de rede: ' + err.message);
     status.textContent = 'Erro de conexão com o servidor. Tente novamente.';
     status.style.color = '#c0392b';
     btn.textContent = 'Iniciar Atendimento';
