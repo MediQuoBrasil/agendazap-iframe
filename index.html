@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MediQuo - Diagnóstico de Estratégias</title>
+<title>MediQuo - Teste Inbox/Conversa Direta</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
@@ -15,10 +15,21 @@
   }
   .header h1 { font-size: 20px; color: #38bdf8; margin-bottom: 4px; }
   .header p { font-size: 13px; color: #94a3b8; }
+  .header .context {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #94a3b8;
+  }
+  .header .context strong { color: #4ade80; }
+  .header .context .fail { color: #f87171; }
 
-  .container { display: flex; height: calc(100vh - 80px); }
+  .container { display: flex; height: calc(100vh - 140px); }
 
-  /* PAINEL ESQUERDO - Controles */
   .panel-left {
     width: 420px;
     min-width: 420px;
@@ -61,21 +72,23 @@
     padding: 2px 8px;
     border-radius: 4px;
     margin-bottom: 6px;
+    margin-right: 4px;
   }
-  .tag-sdk { background: #1e40af; color: #93c5fd; }
-  .tag-navigate { background: #065f46; color: #6ee7b7; }
-  .tag-postmessage { background: #7c2d12; color: #fdba74; }
-  .tag-roomid { background: #581c87; color: #d8b4fe; }
+  .tag-inbox { background: #065f46; color: #6ee7b7; }
+  .tag-navigate { background: #1e40af; color: #93c5fd; }
+  .tag-sdk { background: #7c2d12; color: #fdba74; }
+  .tag-postmessage { background: #581c87; color: #d8b4fe; }
+  .tag-confirmed { background: #166534; color: #4ade80; }
 
   .strategy-card .name { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 4px; }
   .strategy-card .desc { font-size: 11px; color: #94a3b8; line-height: 1.4; }
-  .strategy-card .risk {
-    font-size: 10px;
-    color: #fbbf24;
+  .strategy-card .hypothesis {
+    font-size: 11px;
+    color: #38bdf8;
     margin-top: 6px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
+    padding-top: 6px;
+    border-top: 1px solid #1e293b;
+    line-height: 1.4;
   }
 
   .strategy-card .result-badge {
@@ -111,8 +124,6 @@
   .btn-secondary:hover { background: #475569; }
   .btn-warning { background: #d97706; color: #fff; }
   .btn-warning:hover { background: #b45309; }
-  .btn-success { background: #16a34a; color: #fff; }
-  .btn-success:hover { background: #15803d; }
 
   .info-box {
     background: #0f172a;
@@ -127,7 +138,6 @@
   .info-box strong { color: #e2e8f0; }
   .info-box .val { color: #38bdf8; font-family: monospace; }
 
-  /* PAINEL DIREITO - Logs */
   .panel-right {
     flex: 1;
     display: flex;
@@ -176,22 +186,19 @@
   }
   .status-indicator.ready { background: #166534; color: #4ade80; }
   .status-indicator.testing { background: #92400e; color: #fbbf24; animation: pulse 1.5s infinite; }
-  .status-indicator .dot {
-    width: 8px; height: 8px; border-radius: 50%; background: currentColor;
-  }
+  .status-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-  /* Widget container reposicionado */
   #MediquoLauncher { display: none !important; }
   body.widget-open #MediquoContainer {
     left: 420px !important;
     right: 50% !important;
     bottom: 0 !important;
-    top: 80px !important;
+    top: 140px !important;
     width: calc(50% - 420px) !important;
-    height: calc(100vh - 80px) !important;
+    height: calc(100vh - 140px) !important;
     min-width: 0 !important;
-    max-height: calc(100vh - 80px) !important;
+    max-height: calc(100vh - 140px) !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     opacity: 1 !important;
@@ -203,8 +210,16 @@
 <body>
 
 <div class="header">
-  <h1>🔬 MediQuo — Diagnóstico Isolado de Estratégias</h1>
-  <p>Teste cada método separadamente para identificar qual abre a sala da profissional</p>
+  <h1>🔬 MediQuo — Teste de Navegação Direta à Conversa</h1>
+  <p>Hipótese: se a mensagem via sender_candidates já criou uma conversa, navegar ao inbox pode mostrar só essa conversa</p>
+  <div class="context">
+    <strong>Resultados anteriores confirmados:</strong>
+    ✅ [B] navigate("/professionals/{hash}/room") — FUNCIONA (lista + abre na profissional) &nbsp;
+    ✅ [C] postMessage→container navigate — FUNCIONA &nbsp;
+    ✅ [D] postMessage→container open_room — FUNCIONA &nbsp;
+    <span class="fail">❌ [A] open_room(hash) SDK — NÃO funciona</span> &nbsp;
+    <span class="fail">❌ [E/F/G] roomId — NÃO funciona</span>
+  </div>
 </div>
 
 <div class="container">
@@ -216,66 +231,77 @@
     </div>
 
     <div class="info-box" id="session-info" style="display:none">
-      <strong>Dados da Sessão:</strong><br>
+      <strong>Sessão:</strong><br>
       Hash: <span class="val" id="info-hash">—</span><br>
-      RoomId: <span class="val" id="info-roomid">—</span><br>
-      consultRoomId (API): <span class="val" id="info-consult-roomid">—</span><br>
-      configuredRoomId (fixo): <span class="val" id="info-configured-roomid">—</span><br>
+      Mensagem enviada: <span class="val" id="info-msg">—</span><br>
       Token: <span class="val" id="info-token">—</span>
     </div>
 
-    <div class="section-title" style="margin-top:20px">2. Selecione UMA Estratégia Para Testar</div>
+    <div class="section-title" style="margin-top:20px">2. Estratégias de Navegação — Selecione UMA</div>
 
-    <div class="strategy-card" data-strategy="A" onclick="selectStrategy('A')">
+    <!-- NOVAS ESTRATÉGIAS INBOX -->
+    <div class="strategy-card" data-strategy="H1" onclick="selectStrategy('H1')">
       <span class="result-badge"></span>
-      <span class="tag tag-sdk">SDK</span>
-      <div class="name">[A] open_room(hash) via SDK</div>
-      <div class="desc">Usa MediquoWidget.open_room(professionalHash). Método documentado oficial.</div>
+      <span class="tag tag-inbox">INBOX</span><span class="tag tag-navigate">NAVIGATE SDK</span>
+      <div class="name">[H1] navigate("/inbox") via SDK</div>
+      <div class="desc">Navega para a rota /inbox do React app interno.</div>
+      <div class="hypothesis">💡 Se só existe 1 conversa (criada pelo sender_candidates), pode abrir direto nela.</div>
     </div>
 
-    <div class="strategy-card" data-strategy="B" onclick="selectStrategy('B')">
+    <div class="strategy-card" data-strategy="H2" onclick="selectStrategy('H2')">
       <span class="result-badge"></span>
-      <span class="tag tag-navigate">NAVIGATE</span>
-      <div class="name">[B] navigate("/professionals/{hash}/room") via SDK</div>
-      <div class="desc">Usa MediquoWidget.navigate() com caminho interno do React app.</div>
+      <span class="tag tag-inbox">INBOX</span><span class="tag tag-postmessage">POSTMESSAGE</span>
+      <div class="name">[H2] postMessage → container: navigate "/inbox"</div>
+      <div class="desc">Envia postMessage direto ao container com path=/inbox.</div>
+      <div class="hypothesis">💡 Variante direta de H1 — bypassa o launcher.</div>
     </div>
 
-    <div class="strategy-card" data-strategy="C" onclick="selectStrategy('C')">
+    <div class="strategy-card" data-strategy="H3" onclick="selectStrategy('H3')">
       <span class="result-badge"></span>
-      <span class="tag tag-postmessage">POSTMESSAGE</span>
-      <div class="name">[C] postMessage → container: navigate</div>
-      <div class="desc">Envia postMessage direto ao iframe container com command=navigate.</div>
+      <span class="tag tag-inbox">INBOX</span><span class="tag tag-navigate">NAVIGATE SDK</span>
+      <div class="name">[H3] navigate("/conversations") via SDK</div>
+      <div class="desc">Tenta rota alternativa /conversations.</div>
+      <div class="hypothesis">💡 Possível rota alternativa para lista de conversas ativas.</div>
     </div>
 
-    <div class="strategy-card" data-strategy="D" onclick="selectStrategy('D')">
+    <div class="strategy-card" data-strategy="H4" onclick="selectStrategy('H4')">
       <span class="result-badge"></span>
-      <span class="tag tag-postmessage">POSTMESSAGE</span>
-      <div class="name">[D] postMessage → container: open_room</div>
-      <div class="desc">Envia postMessage direto ao iframe container com command=open_room + professional_hash.</div>
+      <span class="tag tag-inbox">INBOX</span><span class="tag tag-navigate">NAVIGATE SDK</span>
+      <div class="name">[H4] navigate("/") via SDK</div>
+      <div class="desc">Navega para a raiz do widget — pode ser o inbox ou lista dependendo do estado.</div>
+      <div class="hypothesis">💡 Raiz do SPA pode resolver para inbox se há conversa ativa.</div>
     </div>
 
-    <div class="strategy-card" data-strategy="E" onclick="selectStrategy('E')">
+    <div class="strategy-card" data-strategy="H5" onclick="selectStrategy('H5')">
       <span class="result-badge"></span>
-      <span class="tag tag-roomid">ROOM ID</span>
-      <div class="name">[E] open_room(roomId numérico) via SDK</div>
-      <div class="desc">Usa MediquoWidget.open_room(3318151). Room ID do banco de dados.</div>
-      <div class="risk">⚠️ Usa roomId que pode não ser obtível via API</div>
+      <span class="tag tag-inbox">INBOX</span><span class="tag tag-navigate">NAVIGATE SDK</span>
+      <div class="name">[H5] navigate("/rooms") via SDK</div>
+      <div class="desc">Tenta rota /rooms — lista de salas ativas.</div>
+      <div class="hypothesis">💡 Se existe rota de rooms ativas, pode mostrar só a conversa com Gabriela.</div>
     </div>
 
-    <div class="strategy-card" data-strategy="F" onclick="selectStrategy('F')">
+    <div class="strategy-card" data-strategy="H6" onclick="selectStrategy('H6')">
       <span class="result-badge"></span>
-      <span class="tag tag-roomid">ROOM ID</span>
-      <div class="name">[F] postMessage → container: navigate /rooms/{id}</div>
-      <div class="desc">Envia postMessage com path=/rooms/3318151.</div>
-      <div class="risk">⚠️ Usa roomId que pode não ser obtível via API</div>
+      <span class="tag tag-sdk">OPEN_LIST</span>
+      <div class="name">[H6] open_list() via SDK (sem navigate)</div>
+      <div class="desc">Método documentado: MediquoWidget.open_list(). Abre a lista de conversas do inbox.</div>
+      <div class="hypothesis">💡 Método oficial — se só existe 1 conversa, pode ser a tela ideal.</div>
     </div>
 
-    <div class="strategy-card" data-strategy="G" onclick="selectStrategy('G')">
+    <div class="strategy-card" data-strategy="H7" onclick="selectStrategy('H7')">
       <span class="result-badge"></span>
-      <span class="tag tag-roomid">ROOM ID</span>
-      <div class="name">[G] open_room(roomId string) via SDK</div>
-      <div class="desc">Usa MediquoWidget.open_room("3318151") como string.</div>
-      <div class="risk">⚠️ Usa roomId que pode não ser obtível via API</div>
+      <span class="tag tag-sdk">OPEN_LIST</span><span class="tag tag-confirmed">+ NAVIGATE B</span>
+      <div class="name">[H7] open_list() + navigate("/professionals/{hash}/room")</div>
+      <div class="desc">Combinação: abre inbox primeiro, depois navega para a sala da profissional.</div>
+      <div class="hypothesis">💡 Combina: inbox como contexto + navegação direta. Pode eliminar a lista de profissionais.</div>
+    </div>
+
+    <div class="strategy-card" data-strategy="H8" onclick="selectStrategy('H8')">
+      <span class="result-badge"></span>
+      <span class="tag tag-confirmed">CONTROLE B</span>
+      <div class="name">[CONTROLE] navigate("/professionals/{hash}/room") — já confirmado</div>
+      <div class="desc">Reexecuta a estratégia B já confirmada como controle de comparação.</div>
+      <div class="hypothesis">📋 Referência: deve mostrar lista de profissionais com Gabriela em destaque.</div>
     </div>
 
     <div class="btn-group">
@@ -285,19 +311,12 @@
       <button class="btn btn-danger" onclick="resetWidget()">⟲ Reset Widget</button>
     </div>
 
-    <div class="btn-group">
-      <button class="btn btn-success" onclick="executarTodasSequencial()">
-        ▶▶ Executar TODAS em sequência (com reset entre cada)
-      </button>
-    </div>
-
     <div class="info-box" style="margin-top:16px">
-      <strong>Como interpretar:</strong><br>
-      • O widget vai mostrar a lista de profissionais OU abrir direto na sala<br>
-      • Observe o evento <span class="val">command=navigate</span> no log — se o widget responde, a estratégia foi processada<br>
-      • Se a profissional abrir direto = ✅ SUCESSO<br>
-      • Se só mostrar a lista = ❌ FALHA (estratégia não teve efeito)<br>
-      • Após cada teste, clique "Reset Widget" antes de testar outra
+      <strong>O que observar:</strong><br>
+      • <span class="val">Lista de profissionais</span> = comportamento atual (funciona mas não é ideal)<br>
+      • <span class="val">Inbox com 1 conversa</span> = sucesso parcial (mostra só Gabriela)<br>
+      • <span class="val">Conversa aberta direto</span> = sucesso total (entra na sala sem cliques)<br>
+      • Após cada teste: <strong>Reset Widget</strong> antes do próximo
     </div>
   </div>
 
@@ -314,19 +333,15 @@
 // === CONFIG ===
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx0s1-gbIMh4oOiCaTs76VcOjjOzOwEwD12a_5-0rfSMfcl1byxMYKSu9-qh7XGoVIVZA/exec";
 var PROFESSIONAL_HASH = "0549bd07-d236-42a1-bc95-f0e7377d1ec1";
-var CONFIGURED_ROOM_ID = "3318151";
 
 // === STATE ===
 var currentAccessToken = null;
 var currentProfessionalHash = null;
-var currentRoomId = null;
-var consultRoomId = null;
-var configuredRoomId = null;
 var mediquoInitialized = false;
 var widgetSessionReady = false;
 var selectedStrategy = null;
 var testInProgress = false;
-var eventLog = []; // Captura eventos durante o teste
+var eventLog = [];
 var testStartTime = null;
 
 // === LOGGING ===
@@ -339,8 +354,6 @@ function mlog(msg, cls) {
   entry.innerHTML = '<span class="ts">[' + ts + ']</span> <span class="msg">' + escapeHtml(msg) + '</span>';
   container.appendChild(entry);
   container.scrollTop = container.scrollHeight;
-
-  // Também no console
   console.log('[MQ ' + ts + '] ' + msg);
 }
 
@@ -357,32 +370,29 @@ function escapeHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function limparLogs() {
-  document.getElementById('log-container').innerHTML = '';
-}
+function limparLogs() { document.getElementById('log-container').innerHTML = ''; }
 
-// === SELEÇÃO DE ESTRATÉGIA ===
+// === SELEÇÃO ===
 function selectStrategy(id) {
   selectedStrategy = id;
-  document.querySelectorAll('.strategy-card').forEach(function(c) {
-    c.classList.remove('selected');
-  });
+  document.querySelectorAll('.strategy-card').forEach(function(c) { c.classList.remove('selected'); });
   document.querySelector('[data-strategy="' + id + '"]').classList.add('selected');
   document.getElementById('btn-test').disabled = !widgetSessionReady;
   mlog('Estratégia [' + id + '] selecionada', 'info');
 }
 
-// === INICIALIZAR WIDGET ===
+// === INICIALIZAR ===
 function inicializarWidget() {
   var btn = document.getElementById('btn-init');
   var status = document.getElementById('status-widget');
   btn.disabled = true;
   btn.textContent = 'Carregando...';
   status.className = 'status-indicator';
-  status.innerHTML = '<span class="dot"></span> Conectando ao servidor...';
+  status.innerHTML = '<span class="dot"></span> Conectando...';
 
   mlogSeparator('INICIALIZAÇÃO');
-  mlog('Chamando Apps Script para initSession...', 'info');
+  mlog('Chamando Apps Script (initSession)...', 'info');
+  mlog('→ Isso registra paciente + autentica + envia mensagem com sender_candidates=[Gabriela]', 'info');
 
   fetch(APPS_SCRIPT_URL, {
     redirect: "follow",
@@ -392,7 +402,7 @@ function inicializarWidget() {
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    mlog('Resposta recebida do servidor', 'success');
+    mlog('Resposta recebida', 'success');
 
     if (data.logs) {
       data.logs.forEach(function(l) { mlog('SERVER: ' + l); });
@@ -407,27 +417,18 @@ function inicializarWidget() {
 
     currentAccessToken = data.accessToken;
     currentProfessionalHash = data.professionalHash;
-    currentRoomId = data.roomId || null;
-    consultRoomId = data.consultRoomId || null;
-    configuredRoomId = data.configuredRoomId || null;
 
-    // Exibe info da sessão
+    // Info da sessão
     document.getElementById('session-info').style.display = 'block';
     document.getElementById('info-hash').textContent = currentProfessionalHash;
-    document.getElementById('info-roomid').textContent = currentRoomId || 'N/A';
-    document.getElementById('info-consult-roomid').textContent = consultRoomId || 'N/A (endpoint não retornou)';
-    document.getElementById('info-configured-roomid').textContent = configuredRoomId || 'N/A';
     document.getElementById('info-token').textContent = currentAccessToken ? currentAccessToken.substring(0, 25) + '...' : 'N/A';
 
-    mlog('Hash: ' + currentProfessionalHash, 'info');
-    mlog('RoomId final: ' + currentRoomId, 'info');
-    mlog('consultRoomId (da API /consult): ' + (consultRoomId || 'NÃO RETORNADO'), consultRoomId ? 'success' : 'warn');
-    mlog('configuredRoomId (fixo 3318151): ' + configuredRoomId, 'warn');
+    // Verifica se mensagem foi enviada com sucesso
+    var msgOk = data.messageResult && data.messageResult.status === 200;
+    document.getElementById('info-msg').textContent = msgOk ? '✅ SIM (conversa criada com Gabriela)' : '⚠️ ' + JSON.stringify(data.messageResult);
+    mlog('Mensagem de boas-vindas: ' + (msgOk ? 'ENVIADA ✅ — conversa com Gabriela deve existir no inbox' : 'FALHA ⚠️'), msgOk ? 'success' : 'warn');
 
-    if (!consultRoomId && currentRoomId === CONFIGURED_ROOM_ID) {
-      mlog('⚠️ ATENÇÃO: roomId está usando o valor FIXO do banco, não da API!', 'warn');
-      mlog('⚠️ Se as estratégias E/F/G funcionarem e A/B/C/D não, temos um problema.', 'warn');
-    }
+    mlog('Hash: ' + currentProfessionalHash, 'info');
 
     // Inicializa widget
     mlog('Inicializando MediquoWidget...', 'info');
@@ -441,15 +442,15 @@ function inicializarWidget() {
         launcher: "hidden",
         hideCloseButton: "true",
         colors: { primary: "#022647" },
-        text: { title: "Diagnóstico MediQuo" }
+        text: { title: "MAG Seguros - Atendimento 24h" }
       }
     });
     mediquoInitialized = true;
     mlog('MediquoWidget.init() executado ✅', 'success');
 
     status.className = 'status-indicator';
-    status.innerHTML = '<span class="dot"></span> Widget iniciado, aguardando sessão...';
-    btn.textContent = 'Widget Inicializado';
+    status.innerHTML = '<span class="dot"></span> Aguardando sessão...';
+    btn.textContent = 'Inicializado';
   })
   .catch(function(err) {
     mlog('ERRO de conexão: ' + err.message, 'error');
@@ -458,7 +459,7 @@ function inicializarWidget() {
   });
 }
 
-// === ESCUTA EVENTOS DO WIDGET ===
+// === ESCUTA EVENTOS ===
 window.addEventListener("message", function(event) {
   if (!event.data || typeof event.data !== 'object') return;
   var cmd = event.data.command || '';
@@ -470,55 +471,43 @@ window.addEventListener("message", function(event) {
 
   mlog('📨 PostMessage: command=' + cmd + ' ' + detailStr, 'event');
 
-  // Captura eventos durante teste
   if (testInProgress) {
-    eventLog.push({
-      time: Date.now() - testStartTime,
-      command: cmd,
-      detail: detail
-    });
+    eventLog.push({ time: Date.now() - testStartTime, command: cmd, detail: detail });
   }
 
-  // Evento "started" = sessão pronta
   if (cmd === 'started') {
     widgetSessionReady = true;
-    mlog('✅ Widget sessão PRONTA — pode testar estratégias', 'success');
+    mlog('✅ Sessão PRONTA — pode testar estratégias', 'success');
     var status = document.getElementById('status-widget');
     status.className = 'status-indicator ready';
-    status.innerHTML = '<span class="dot"></span> Sessão pronta';
-    if (selectedStrategy) {
-      document.getElementById('btn-test').disabled = false;
-    }
+    status.innerHTML = '<span class="dot"></span> Pronta';
+    if (selectedStrategy) document.getElementById('btn-test').disabled = false;
   }
 
-  // Evento de profissional indisponível
   if (cmd === 'professionalIsUnavailable') {
     mlog('🔒 Profissional indisponível: ' + (detail.name || ''), 'warn');
-    mlog('→ Isso significa que open_room FUNCIONOU (chegou até a profissional)', 'success');
-    if (testInProgress) finalizarTeste(true, 'professionalIsUnavailable');
+    mlog('→ open_room chegou até a profissional (funciona, mas offline)', 'success');
+    if (testInProgress) finalizarTeste('profissional_encontrada_offline', 'professionalIsUnavailable — profissional encontrada mas offline');
   }
 
-  // Mensagem com profissional = sala aberta
   if (cmd === 'message' && detail && detail.professional) {
-    mlog('💬 Mensagem recebida com profissional: ' + JSON.stringify(detail.professional), 'success');
-    if (testInProgress) finalizarTeste(true, 'message com professional');
+    mlog('💬 Sala aberta com profissional: ' + JSON.stringify(detail.professional), 'success');
+    if (testInProgress) finalizarTeste('sala_aberta', 'message com professional — CONVERSA ABERTA DIRETO!');
   }
 
-  // Room opened
   if (cmd === 'roomOpened' || cmd === 'room_opened' || cmd === 'openRoom') {
     mlog('✅ Evento de sala aberta!', 'success');
-    if (testInProgress) finalizarTeste(true, cmd);
+    if (testInProgress) finalizarTeste('sala_aberta', cmd);
   }
 });
 
-// === EXECUTAR TESTE ISOLADO ===
+// === EXECUTAR TESTE ===
 function executarTesteIsolado() {
-  if (!selectedStrategy) { mlog('Selecione uma estratégia primeiro', 'warn'); return; }
+  if (!selectedStrategy) { mlog('Selecione uma estratégia', 'warn'); return; }
   if (!widgetSessionReady) { mlog('Widget não está pronto', 'error'); return; }
   if (testInProgress) { mlog('Teste já em andamento', 'warn'); return; }
 
   var container = document.getElementById('MediquoContainer');
-
   testInProgress = true;
   testStartTime = Date.now();
   eventLog = [];
@@ -527,10 +516,10 @@ function executarTesteIsolado() {
   status.className = 'status-indicator testing';
   status.innerHTML = '<span class="dot"></span> Testando [' + selectedStrategy + ']...';
 
-  mlogSeparator('TESTE ISOLADO: Estratégia [' + selectedStrategy + ']');
+  mlogSeparator('TESTE: Estratégia [' + selectedStrategy + ']');
 
-  // Abre widget primeiro
-  mlog('Abrindo widget...', 'info');
+  // Abre widget
+  mlog('Abrindo widget com MediquoWidget.open()...', 'info');
   try {
     MediquoWidget.open();
     document.body.classList.add('widget-open');
@@ -539,224 +528,148 @@ function executarTesteIsolado() {
     mlog('open() erro: ' + e.message, 'error');
   }
 
-  // Aguarda 1.5s para widget estar visível, depois executa APENAS a estratégia selecionada
+  // Aguarda widget visível, depois executa estratégia
   setTimeout(function() {
     mlog('Executando APENAS estratégia [' + selectedStrategy + ']...', 'info');
 
     switch(selectedStrategy) {
-      case 'A':
-        mlog('[A] MediquoWidget.open_room("' + currentProfessionalHash + '")', 'info');
-        try { MediquoWidget.open_room(currentProfessionalHash); mlog('[A] OK — chamada executada sem erro', 'success'); }
-        catch(e) { mlog('[A] ERRO: ' + e.message, 'error'); }
+
+      case 'H1': // navigate("/inbox") via SDK
+        mlog('[H1] MediquoWidget.navigate("/inbox")', 'info');
+        try { MediquoWidget.navigate('/inbox'); mlog('[H1] OK', 'success'); }
+        catch(e) { mlog('[H1] ERRO: ' + e.message, 'error'); }
         break;
 
-      case 'B':
-        var pathB = '/professionals/' + currentProfessionalHash + '/room';
-        mlog('[B] MediquoWidget.navigate("' + pathB + '")', 'info');
-        try { MediquoWidget.navigate(pathB); mlog('[B] OK — chamada executada sem erro', 'success'); }
-        catch(e) { mlog('[B] ERRO: ' + e.message, 'error'); }
-        break;
-
-      case 'C':
+      case 'H2': // postMessage container navigate /inbox
         if (container && container.contentWindow) {
-          var pathC = '/professionals/' + currentProfessionalHash + '/room';
-          mlog('[C] postMessage→container: {command:"navigate", payload:{path:"' + pathC + '"}}', 'info');
+          mlog('[H2] postMessage→container: navigate path="/inbox"', 'info');
           try {
-            container.contentWindow.postMessage({ command: 'navigate', payload: { path: pathC } }, '*');
-            mlog('[C] OK — postMessage enviado', 'success');
-          } catch(e) { mlog('[C] ERRO: ' + e.message, 'error'); }
-        } else {
-          mlog('[C] ERRO: MediquoContainer não encontrado!', 'error');
-        }
+            container.contentWindow.postMessage({ command: 'navigate', payload: { path: '/inbox' } }, '*');
+            mlog('[H2] OK', 'success');
+          } catch(e) { mlog('[H2] ERRO: ' + e.message, 'error'); }
+        } else { mlog('[H2] ERRO: MediquoContainer não encontrado', 'error'); }
         break;
 
-      case 'D':
-        if (container && container.contentWindow) {
-          mlog('[D] postMessage→container: {command:"open_room", payload:{professional_hash:"' + currentProfessionalHash + '"}}', 'info');
-          try {
-            container.contentWindow.postMessage({ command: 'open_room', payload: { professional_hash: currentProfessionalHash } }, '*');
-            mlog('[D] OK — postMessage enviado', 'success');
-          } catch(e) { mlog('[D] ERRO: ' + e.message, 'error'); }
-        } else {
-          mlog('[D] ERRO: MediquoContainer não encontrado!', 'error');
-        }
+      case 'H3': // navigate("/conversations")
+        mlog('[H3] MediquoWidget.navigate("/conversations")', 'info');
+        try { MediquoWidget.navigate('/conversations'); mlog('[H3] OK', 'success'); }
+        catch(e) { mlog('[H3] ERRO: ' + e.message, 'error'); }
         break;
 
-      case 'E':
-        if (currentRoomId) {
-          mlog('[E] MediquoWidget.open_room(' + currentRoomId + ') — roomId NUMÉRICO', 'info');
-          try { MediquoWidget.open_room(currentRoomId); mlog('[E] OK — chamada executada sem erro', 'success'); }
-          catch(e) { mlog('[E] ERRO: ' + e.message, 'error'); }
-        } else {
-          mlog('[E] SEM ROOM ID disponível! Não é possível testar.', 'error');
-        }
+      case 'H4': // navigate("/")
+        mlog('[H4] MediquoWidget.navigate("/")', 'info');
+        try { MediquoWidget.navigate('/'); mlog('[H4] OK', 'success'); }
+        catch(e) { mlog('[H4] ERRO: ' + e.message, 'error'); }
         break;
 
-      case 'F':
-        if (currentRoomId && container && container.contentWindow) {
-          var pathF = '/rooms/' + currentRoomId;
-          mlog('[F] postMessage→container: {command:"navigate", payload:{path:"' + pathF + '"}}', 'info');
-          try {
-            container.contentWindow.postMessage({ command: 'navigate', payload: { path: pathF } }, '*');
-            mlog('[F] OK — postMessage enviado', 'success');
-          } catch(e) { mlog('[F] ERRO: ' + e.message, 'error'); }
-        } else {
-          mlog('[F] SEM ROOM ID ou container! Não é possível testar.', 'error');
-        }
+      case 'H5': // navigate("/rooms")
+        mlog('[H5] MediquoWidget.navigate("/rooms")', 'info');
+        try { MediquoWidget.navigate('/rooms'); mlog('[H5] OK', 'success'); }
+        catch(e) { mlog('[H5] ERRO: ' + e.message, 'error'); }
         break;
 
-      case 'G':
-        if (currentRoomId) {
-          mlog('[G] MediquoWidget.open_room("' + String(currentRoomId) + '") — roomId STRING', 'info');
-          try { MediquoWidget.open_room(String(currentRoomId)); mlog('[G] OK — chamada executada sem erro', 'success'); }
-          catch(e) { mlog('[G] ERRO: ' + e.message, 'error'); }
-        } else {
-          mlog('[G] SEM ROOM ID disponível! Não é possível testar.', 'error');
-        }
+      case 'H6': // open_list() via SDK
+        mlog('[H6] MediquoWidget.open_list()', 'info');
+        try { MediquoWidget.open_list(); mlog('[H6] OK', 'success'); }
+        catch(e) { mlog('[H6] ERRO: ' + e.message, 'error'); }
+        break;
+
+      case 'H7': // open_list() + navigate B
+        mlog('[H7] Fase 1: MediquoWidget.open_list()', 'info');
+        try { MediquoWidget.open_list(); mlog('[H7] open_list() OK', 'success'); }
+        catch(e) { mlog('[H7] open_list() ERRO: ' + e.message, 'error'); }
+
+        // Aguarda 1s para open_list fazer efeito, depois navega
+        setTimeout(function() {
+          var pathB = '/professionals/' + currentProfessionalHash + '/room';
+          mlog('[H7] Fase 2 (após 1s): MediquoWidget.navigate("' + pathB + '")', 'info');
+          try { MediquoWidget.navigate(pathB); mlog('[H7] navigate() OK', 'success'); }
+          catch(e) { mlog('[H7] navigate() ERRO: ' + e.message, 'error'); }
+        }, 1000);
+        break;
+
+      case 'H8': // CONTROLE - estratégia B confirmada
+        var pathCtrl = '/professionals/' + currentProfessionalHash + '/room';
+        mlog('[CONTROLE] MediquoWidget.navigate("' + pathCtrl + '")', 'info');
+        try { MediquoWidget.navigate(pathCtrl); mlog('[CONTROLE] OK', 'success'); }
+        catch(e) { mlog('[CONTROLE] ERRO: ' + e.message, 'error'); }
         break;
     }
 
-    mlog('Aguardando 8s para observar resposta do widget...', 'info');
-    mlog('👀 OBSERVE O WIDGET: abriu na profissional ou mostra lista?', 'warn');
+    mlog('Aguardando 10s para observar o resultado...', 'info');
+    mlog('👀 OBSERVE: Lista de profissionais? Inbox? Conversa direta?', 'warn');
 
-    // Timeout de 8s para considerar o teste
     setTimeout(function() {
       if (testInProgress) {
-        finalizarTeste(false, 'timeout 8s — nenhum evento de sala aberta detectado');
+        finalizarTeste('sem_evento_auto', 'timeout 10s — verifique visualmente o que o widget está mostrando');
       }
-    }, 8000);
+    }, 10000);
 
   }, 1500);
 }
 
-function finalizarTeste(sucesso, motivo) {
+function finalizarTeste(resultado, motivo) {
   testInProgress = false;
   var card = document.querySelector('[data-strategy="' + selectedStrategy + '"]');
 
-  mlogSeparator('RESULTADO: Estratégia [' + selectedStrategy + ']');
+  mlogSeparator('RESULTADO: [' + selectedStrategy + ']');
 
-  if (sucesso) {
-    mlog('✅ SUCESSO — motivo: ' + motivo, 'success');
+  if (resultado === 'sala_aberta') {
+    mlog('🎉 CONVERSA ABERTA DIRETAMENTE! — ' + motivo, 'success');
     card.classList.add('success');
     card.classList.remove('fail');
-    card.querySelector('.result-badge').textContent = '✅ FUNCIONA';
+    card.querySelector('.result-badge').textContent = '🎉 DIRETO NA CONVERSA';
+  } else if (resultado === 'profissional_encontrada_offline') {
+    mlog('✅ Profissional encontrada (offline) — ' + motivo, 'success');
+    card.classList.add('success');
+    card.classList.remove('fail');
+    card.querySelector('.result-badge').textContent = '✅ ENCONTROU';
   } else {
-    mlog('❌ Sem efeito automático — ' + motivo, 'warn');
-    mlog('⚠️ Verifique VISUALMENTE: a profissional apareceu em destaque na lista?', 'warn');
-    card.classList.add('fail');
-    card.classList.remove('success');
-    card.querySelector('.result-badge').textContent = '❌ SEM EFEITO';
+    mlog('⏱️ ' + motivo, 'warn');
+    mlog('⚠️ Descreva o que viu no widget:', 'warn');
+    mlog('  → "Lista de profissionais" = mesmo comportamento anterior', 'warn');
+    mlog('  → "Inbox com conversa(s)" = mostra conversas ativas', 'warn');
+    mlog('  → "Conversa direta com Gabriela" = SUCESSO TOTAL', 'warn');
+    mlog('  → "Tela em branco / erro" = rota não existe', 'warn');
+    // Não marca como fail automaticamente — precisa de avaliação visual
+    card.querySelector('.result-badge').textContent = '👀 VERIFICAR';
+    card.querySelector('.result-badge').style.display = 'inline-block';
+    card.querySelector('.result-badge').style.background = '#92400e';
+    card.querySelector('.result-badge').style.color = '#fbbf24';
   }
 
-  // Resume eventos capturados
-  mlog('Eventos capturados durante o teste: ' + eventLog.length, 'info');
+  mlog('Eventos capturados: ' + eventLog.length, 'info');
   eventLog.forEach(function(ev) {
     mlog('  +' + ev.time + 'ms → ' + ev.command + ': ' + JSON.stringify(ev.detail), 'event');
   });
 
   var status = document.getElementById('status-widget');
   status.className = 'status-indicator ready';
-  status.innerHTML = '<span class="dot"></span> Teste [' + selectedStrategy + '] concluído';
+  status.innerHTML = '<span class="dot"></span> [' + selectedStrategy + '] concluído';
 }
 
-// === RESET WIDGET ===
+// === RESET ===
 function resetWidget() {
   mlogSeparator('RESET');
-  mlog('Destruindo widget para reset...', 'info');
+  mlog('Destruindo widget...', 'info');
 
   testInProgress = false;
   widgetSessionReady = false;
   document.body.classList.remove('widget-open');
 
-  try {
-    MediquoWidget.destroy();
-    mlog('destroy() OK', 'success');
-  } catch(e) {
-    mlog('destroy() erro: ' + e.message, 'error');
-  }
+  try { MediquoWidget.destroy(); mlog('destroy() OK', 'success'); }
+  catch(e) { mlog('destroy() erro: ' + e.message, 'error'); }
 
   mediquoInitialized = false;
 
-  var btn = document.getElementById('btn-init');
-  btn.disabled = false;
-  btn.textContent = 'Inicializar Widget + Sessão';
-
-  var status = document.getElementById('status-widget');
-  status.className = 'status-indicator';
-  status.innerHTML = '<span class="dot"></span> Não iniciado';
-
+  document.getElementById('btn-init').disabled = false;
+  document.getElementById('btn-init').textContent = 'Inicializar Widget + Sessão';
+  document.getElementById('status-widget').className = 'status-indicator';
+  document.getElementById('status-widget').innerHTML = '<span class="dot"></span> Não iniciado';
   document.getElementById('btn-test').disabled = true;
   document.getElementById('session-info').style.display = 'none';
 
-  mlog('Widget destruído. Clique "Inicializar" para novo teste.', 'info');
-}
-
-// === EXECUTAR TODAS SEQUENCIALMENTE ===
-var allStrategies = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-var seqIndex = 0;
-
-function executarTodasSequencial() {
-  mlogSeparator('EXECUÇÃO SEQUENCIAL DE TODAS AS ESTRATÉGIAS');
-  mlog('Isso vai testar cada estratégia isoladamente, com reset entre cada.', 'info');
-  mlog('Atenção: o processo demora ~2 minutos. Observe o widget a cada teste.', 'warn');
-  seqIndex = 0;
-  executarProximaSeq();
-}
-
-function executarProximaSeq() {
-  if (seqIndex >= allStrategies.length) {
-    mlogSeparator('EXECUÇÃO SEQUENCIAL COMPLETA');
-    mlog('Verifique os badges ✅/❌ em cada estratégia no painel.', 'success');
-    return;
-  }
-
-  var strat = allStrategies[seqIndex];
-  selectStrategy(strat);
-
-  // Se widget não está inicializado, inicializa primeiro
-  if (!mediquoInitialized) {
-    mlog('Inicializando widget para teste [' + strat + ']...', 'info');
-    inicializarWidget();
-
-    // Espera sessão ficar pronta (poll)
-    var waitCount = 0;
-    var waiter = setInterval(function() {
-      waitCount++;
-      if (widgetSessionReady) {
-        clearInterval(waiter);
-        setTimeout(function() {
-          executarTesteIsoladoSeq(strat);
-        }, 500);
-      } else if (waitCount > 30) { // 15s timeout
-        clearInterval(waiter);
-        mlog('Timeout aguardando sessão para [' + strat + ']', 'error');
-        seqIndex++;
-        setTimeout(resetEProximo, 1000);
-      }
-    }, 500);
-  } else {
-    executarTesteIsoladoSeq(strat);
-  }
-}
-
-function executarTesteIsoladoSeq(strat) {
-  // Override finalizarTeste para continuar sequência
-  var origFinalize = finalizarTeste;
-  executarTesteIsolado();
-
-  // Após 10s, reset e próxima
-  setTimeout(function() {
-    if (testInProgress) {
-      finalizarTeste(false, 'timeout sequencial');
-    }
-    setTimeout(resetEProximo, 2000);
-  }, 10000);
-}
-
-function resetEProximo() {
-  resetWidget();
-  seqIndex++;
-  setTimeout(executarProximaSeq, 2000);
+  mlog('Reset completo. Inicialize novamente para próximo teste.', 'info');
 }
 </script>
 </body>
